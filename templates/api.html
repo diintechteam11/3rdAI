@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API Access | AI Traffic Analytics</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Outfit', sans-serif; background-color: #020617; color: #cbd5e1; }
+        .glass { background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.1); }
+        .code-glass { background: rgba(0, 0, 0, 0.2); border: 1px solid rgba(255, 255, 255, 0.05); }
+    </style>
+</head>
+<body class="min-h-screen p-8">
+    <div class="max-w-4xl mx-auto">
+        <header class="mb-12 flex justify-between items-center">
+            <h1 class="text-3xl font-bold text-white">API Access</h1>
+            <a href="/" class="text-indigo-400 hover:text-white transition-colors flex items-center gap-2">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+                Back to Dashboard
+            </a>
+        </header>
+
+        <div class="space-y-12">
+            <section class="glass p-8 rounded-3xl">
+                <h2 class="text-xl font-semibold mb-6 text-indigo-400">Endpoint Reference</h2>
+                <div class="space-y-6">
+                    <div>
+                        <div class="flex items-center gap-4 mb-3">
+                            <span class="px-3 py-1 bg-emerald-500/10 text-emerald-400 text-xs font-bold rounded-lg border border-emerald-500/20 uppercase">POST</span>
+                            <code class="text-white font-mono text-sm">/upload-video</code>
+                        </div>
+                        <p class="text-sm text-slate-400 mb-4">Accepts <span class="bg-white/5 px-2 rounded font-mono">multipart/form-data</span> containing the video file and selected triggers.</p>
+                        <div class="code-glass p-4 rounded-xl font-mono text-xs text-indigo-300">
+<pre>{
+  "video_file": "binary data",
+  "triggers": "ANPR,Helmet"
+}</pre>
+                        </div>
+                    </div>
+
+                    <div class="border-t border-white/5 pt-6">
+                        <div class="flex items-center gap-4 mb-3">
+                            <span class="px-3 py-1 bg-blue-500/10 text-blue-400 text-xs font-bold rounded-lg border border-blue-500/20 uppercase">GET</span>
+                            <code class="text-white font-mono text-sm">/video-result/{task_id}</code>
+                        </div>
+                        <p class="text-sm text-slate-400">Provides polling status, output video URL, and detection history.</p>
+                    </div>
+                </div>
+            </section>
+
+            <section class="glass p-8 rounded-3xl">
+                <h2 class="text-xl font-semibold mb-6 text-indigo-400">Example Integration (cURL)</h2>
+                <div class="code-glass p-6 rounded-2xl font-mono text-xs text-slate-300 relative group overflow-x-auto">
+<pre>curl -X POST http://localhost:8000/upload-video \
+     -F "video_file=@/path/to/video.mp4" \
+     -F "triggers=Number Plate Detection,Helmet Detection"</pre>
+                </div>
+            </section>
+
+            <div class="bg-indigo-600/10 border border-indigo-500/20 rounded-2xl p-6 flex flex-col items-center text-center">
+                <h3 class="text-indigo-400 font-bold mb-2 uppercase text-xs tracking-widest">Enterprise Access</h3>
+                <p class="text-sm text-slate-400 max-w-sm mb-4">Need higher rate limits or specialized models? Generate your API Keys below.</p>
+                
+                <div id="key-container" class="hidden w-full max-w-md mb-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                    <div class="flex items-center gap-2 bg-black/40 p-3 rounded-xl border border-white/10">
+                        <code id="api-key-display" class="flex-1 text-emerald-400 font-mono text-sm truncate">sk-xxxxxxxxxxxxxxxxxxxxxxxx</code>
+                        <button onclick="copyKey()" class="p-2 hover:bg-white/10 rounded-lg text-slate-400 transition-colors" title="Copy to clipboard">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path></svg>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="flex gap-4">
+                    <button onclick="generateKey()" id="gen-btn" class="px-6 py-2 bg-indigo-600 text-white rounded-full font-bold text-sm hover:scale-105 transition-transform flex items-center gap-2">
+                        <span id="btn-text">Generate API Key</span>
+                        <div id="loader" class="hidden w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                    </button>
+                    <a href="/playground" class="px-6 py-2 bg-white/5 text-white border border-white/10 rounded-full font-bold text-sm hover:bg-white/10 transition-colors">Open Playground</a>
+                </div>
+            </div>
+        </div>
+
+        <script>
+            async function generateKey() {
+                const btn = document.getElementById('gen-btn');
+                const btnText = document.getElementById('btn-text');
+                const loader = document.getElementById('loader');
+                const container = document.getElementById('key-container');
+                const display = document.getElementById('api-key-display');
+                
+                btn.disabled = true;
+                btnText.textContent = 'Generating...';
+                loader.classList.remove('hidden');
+                
+                try {
+                    const response = await fetch('/generate-api-key', { method: 'POST' });
+                    const data = await response.json();
+                    
+                    display.textContent = data.api_key;
+                    container.classList.remove('hidden');
+                    btnText.textContent = 'Regenerate Key';
+                } catch (error) {
+                    alert('Error generating API key');
+                    btnText.textContent = 'Generate API Key';
+                } finally {
+                    btn.disabled = false;
+                    loader.classList.add('hidden');
+                }
+            }
+
+            function copyKey() {
+                const key = document.getElementById('api-key-display').textContent;
+                navigator.clipboard.writeText(key);
+                alert('API Key copied to clipboard!');
+            }
+        </script>
+
+        <footer class="mt-16 text-center text-slate-500 text-xs py-8 border-t border-white/5">
+            © 2026 AI Traffic Engine | API Documentation v1.2
+        </footer>
+    </div>
+</body>
+</html>

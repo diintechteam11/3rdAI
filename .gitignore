@@ -1,0 +1,32 @@
+# Virtual Environment
+venv/
+.venv/
+env/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Models and Weights
+models/
+*.pt
+*.onnx
+*.weights
+
+# Data and Outputs
+static/crops/
+static/results/
+uploads/
+runs/
+*.mp4
+*.avi
+*.jpg
+*.png
+*.sdp
+
+# Configuration and Keys
+.env
+.vscode/
+.idea/
+*.log
+cam.txt

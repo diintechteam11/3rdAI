@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Documentation | AI Traffic Analytics</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Outfit', sans-serif; background-color: #020617; color: #cbd5e1; }
+        .glass { background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.1); }
+    </style>
+</head>
+<body class="min-h-screen p-8">
+    <div class="max-w-4xl mx-auto">
+        <header class="mb-12 flex justify-between items-center">
+            <h1 class="text-3xl font-bold text-white">Documentation</h1>
+            <a href="/" class="text-indigo-400 hover:text-white transition-colors flex items-center gap-2">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+                Back to Dashboard
+            </a>
+        </header>
+
+        <div class="space-y-12">
+            <section class="glass p-8 rounded-3xl">
+                <h2 class="text-xl font-semibold mb-4 text-indigo-400">System Overview</h2>
+                <p class="leading-relaxed mb-4">
+                    The AI Traffic Analytics system uses Computer Vision to detect traffic violations and identify vehicles in real-time. 
+                    It leverages YOLOv8 (You Only Look Once) architectures for high-speed object detection and EasyOCR for optical character recognition on license plates.
+                </p>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
+                    <div class="p-4 bg-white/5 rounded-xl border border-white/5">
+                        <h3 class="font-medium text-white mb-2">ANPR Engine</h3>
+                        <p class="text-sm">Automatic Number Plate Recognition. Crops the plate and uses deep learning to extract alphanumeric characters.</p>
+                    </div>
+                    <div class="p-4 bg-white/5 rounded-xl border border-white/5">
+                        <h3 class="font-medium text-white mb-2">Violation Triggers</h3>
+                        <p class="text-sm">Monitors for Helmet violations, Triple Riding (3+ on a bike), and Seatbelt usage for cars.</p>
+                    </div>
+                </div>
+            </section>
+
+            <section class="glass p-8 rounded-3xl">
+                <h2 class="text-xl font-semibold mb-6 text-indigo-400">Intelligent Tracking & Deduplication</h2>
+                <div class="space-y-4">
+                    <div class="flex gap-4">
+                        <div class="w-8 h-8 rounded-full bg-indigo-500/20 flex items-center justify-center text-indigo-400 shrink-0 font-bold">1</div>
+                        <div>
+                            <h4 class="text-white font-medium mb-1">Persistent ID Tracking</h4>
+                            <p class="text-sm text-slate-400">The system assigns a unique ID to every vehicle. Even if the vehicle moves across multiple frames, it is recognized as the same entity.</p>
+                        </div>
+                    </div>
+                    <div class="flex gap-4">
+                        <div class="w-8 h-8 rounded-full bg-indigo-500/20 flex items-center justify-center text-indigo-400 shrink-0 font-bold">2</div>
+                        <div>
+                            <h4 class="text-white font-medium mb-1">OCR Stabilization</h4>
+                            <p class="text-sm text-slate-400">By comparing extracted text strings, the system prevents logging the same vehicle twice even if the tracking ID switches due to temporary obstruction.</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="glass p-8 rounded-3xl">
+                <h2 class="text-xl font-semibold mb-4 text-indigo-400">Performance Tips</h2>
+                <ul class="list-disc list-inside space-y-3 text-sm text-slate-400">
+                    <li>Use <span class="text-white font-mono">.mp4</span> containers with H.264 codec for best browser compatibility.</li>
+                    <li>Avoid highly blurry footage; OCR accuracy improves significantly with 720p or 1080p resolution.</li>
+                    <li>The system dynamically skips non-essential tasks to keep the background processing under 2x the video length.</li>
+                </ul>
+            </section>
+        </div>
+
+        <footer class="mt-16 text-center text-slate-500 text-xs py-8 border-t border-white/5">
+            © 2026 AI Traffic Engine | Confidential Documentation
+        </footer>
+    </div>
+</body>
+</html>

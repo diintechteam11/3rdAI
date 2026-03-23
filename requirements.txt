@@ -1,0 +1,13 @@
+fastapi
+uvicorn
+ultralytics
+opencv-python
+python-multipart
+jinja2
+pathlib
+numpy
+easyocr
+paddleocr
+paddlepaddle
+webcolors
+scikit-learn
