@@ -44,19 +44,19 @@ camera_processes = {}
 
 @app.get("/", response_class=HTMLResponse)
 async def read_root(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request})
+    return templates.TemplateResponse(request, "index.html")
 
 @app.get("/docs", response_class=HTMLResponse)
 async def documentation(request: Request):
-    return templates.TemplateResponse("docs.html", {"request": request})
+    return templates.TemplateResponse(request, "docs.html")
 
 @app.get("/api-access", response_class=HTMLResponse)
 async def api_access(request: Request):
-    return templates.TemplateResponse("api.html", {"request": request})
+    return templates.TemplateResponse(request, "api.html")
 
 @app.get("/playground", response_class=HTMLResponse)
 async def playground(request: Request):
-    return templates.TemplateResponse("playground.html", {"request": request})
+    return templates.TemplateResponse(request, "playground.html")
 
 @app.post("/generate-api-key")
 async def generate_api_key():
