@@ -10,6 +10,7 @@ from pathlib import Path
 from utils.detection import process_video, LiveCameraProcessor
 import cv2
 from fastapi.responses import StreamingResponse
+from datetime import datetime
 
 
 app = FastAPI(title="AI Video Analytics Web App")
@@ -28,9 +29,23 @@ CROPS_DIR.mkdir(parents=True, exist_ok=True)
 
 # API Keys storage
 API_KEYS_FILE = BASE_DIR / "api_keys.json"
-if not API_KEYS_FILE.exists():
+
+def load_keys():
+    if not API_KEYS_FILE.exists() or API_KEYS_FILE.stat().st_size == 0:
+        return {}
+    try:
+        with open(API_KEYS_FILE, "r") as f:
+            return json.load(f)
+    except (json.JSONDecodeError, IOError):
+        return {}
+
+def save_keys(keys):
     with open(API_KEYS_FILE, "w") as f:
-        json.dump({}, f)
+        json.dump(keys, f, indent=4)
+
+# Initialize file if not valid
+if not API_KEYS_FILE.exists() or API_KEYS_FILE.stat().st_size == 0:
+    save_keys({})
 
 # Mount static files
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -61,11 +76,9 @@ async def playground(request: Request):
 @app.post("/generate-api-key")
 async def generate_api_key():
     new_key = f"sk-{uuid.uuid4().hex}"
-    with open(API_KEYS_FILE, "r") as f:
-        keys = json.load(f)
-    keys[new_key] = {"created_at": str(uuid.uuid1()), "usage": 0}
-    with open(API_KEYS_FILE, "w") as f:
-        json.dump(keys, f)
+    keys = load_keys()
+    keys[new_key] = {"created_at": str(datetime.now()), "usage": 0}
+    save_keys(keys)
     return {"api_key": new_key}
 
 from fastapi import Header, HTTPException
@@ -76,15 +89,13 @@ async def check_api_key(x_api_key: str = Header(None)):
         # But for documentation's sake, we'll enforce it if provided or if coming from Playground
         return True
         
-    with open(API_KEYS_FILE, "r") as f:
-        keys = json.load(f)
+    keys = load_keys()
     if x_api_key not in keys:
         raise HTTPException(status_code=403, detail="Invalid API Key")
     
     # Increment usage
     keys[x_api_key]["usage"] = keys[x_api_key].get("usage", 0) + 1
-    with open(API_KEYS_FILE, "w") as f:
-        json.dump(keys, f)
+    save_keys(keys)
     return True
 
 def background_video_processing(task_id: str, input_path: str, output_path: str, selected_triggers: list):
