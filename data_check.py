@@ -1,71 +1,73 @@
 import psycopg2
-from datetime import datetime
+import os
+from dotenv import load_dotenv
+from tabulate import tabulate
 
-# DATABASE CONFIG
-DB_CONFIG = {
-    "host": "dpg-d72j4spr0fns73ebi470-a.ohio-postgres.render.com",
-    "database": "db_3rdai",
-    "user": "db_3rdai_user",
-    "password": "WHbW4G3mT0qzgGmPODeLCWwnVwlcR6xO"
-}
+# Load environment variables
+load_dotenv()
 
-def check_database():
+# DB Configuration
+DB_HOST = os.getenv("DB_HOST")
+DB_NAME = os.getenv("DB_NAME")
+DB_USER = os.getenv("DB_USER")
+DB_PASS = os.getenv("DB_PASS")
+
+def check_data():
     try:
-        conn = psycopg2.connect(**DB_CONFIG)
-        cur = conn.cursor()
-        print("\n" + "="*80)
-        print("DATABASE CONTENT OVERVIEW")
-        print("="*80)
-
-        # 1. PROCESSING TASKS
-        print("\n--- [PROCESSING TASKS] ---")
-        cur.execute("SELECT id, filename, status, video_url, created_at FROM processing_tasks ORDER BY created_at DESC LIMIT 5;")
-        tasks = cur.fetchall()
+        print("\n" + "="*50)
+        print("DATABASE SAVED DATA CHECK")
+        print("="*50)
         
-        if not tasks:
-            print("No tasks found.")
-        else:
-            print(f"{'ID':<38} | {'Filename':<30} | {'Status':<10} | {'Created At'}")
-            print("-" * 100)
-            for t in tasks:
-                print(f"{t[0]:<38} | {str(t[1])[:30]:<30} | {t[2]:<10} | {t[4]}")
-                if t[3]: print(f"   └─ URL: {t[3]}")
+        conn = psycopg2.connect(
+            host=DB_HOST, 
+            database=DB_NAME, 
+            user=DB_USER, 
+            password=DB_PASS
+        )
+        cur = conn.cursor()
+        
+        # 1. Check Total Count
+        cur.execute("SELECT COUNT(*) FROM detections;")
+        total_count = cur.fetchone()[0]
+        print(f"\n[SUMMARY] Total Detections Saved: {total_count}")
+        
+        # 2. Check Triggers Breakdown
+        cur.execute("SELECT trigger, COUNT(*) FROM detections GROUP BY trigger;")
+        triggers = cur.fetchall()
+        print("\n[BREAKDOWN] Detections by Trigger Type:")
+        for t, c in triggers:
+            print(f" - {t}: {c}")
 
-        # 2. DETECTION LOGS
-        print("\n--- [DETECTION LOGS (Latest 10)] ---")
+        # 3. Check Latest Entries
+        print(f"\n[LATEST] Top 10 Most Recent Detections:")
         cur.execute("""
-            SELECT l.task_id, l.timestamp, l.trigger, l.plate_number, l.vehicle_color, l.image_plate, l.image_object
-            FROM detection_logs l 
-            ORDER BY l.created_at DESC 
+            SELECT id, created_at, trigger, plate_number, vehicle_color, image_plate_url 
+            FROM detections 
+            ORDER BY created_at DESC 
             LIMIT 10;
         """)
-        logs = cur.fetchall()
+        rows = cur.fetchall()
+        headers = ["ID", "Time", "Trigger", "Plate", "Color", "R2 URL"]
         
-        if not logs:
-            print("No detection logs found.")
-        else:
-            print(f"{'Task ID':<38} | {'Time':<6} | {'Trigger':<20} | {'Plate':<15} | {'Color'}")
-            print("-" * 100)
-            for l in logs:
-                print(f"{l[0]:<38} | {str(l[1])[:6]:<6} | {l[2]:<20} | {str(l[3]):<15} | {l[4]}")
-                if l[5]: print(f"   └─ Plate Image: {l[5]}")
-                if l[6]: print(f"   └─ Vehicle Image: {l[6]}")
+        # Clean up rows for better table display
+        cleaned_rows = []
+        for r in rows:
+            # Shorten R2 URL for display
+            url = str(r[5])
+            if url and len(url) > 30:
+                short_url = url[:15] + "..." + url[-15:]
+            else:
+                short_url = url
+            cleaned_rows.append([r[0], r[1], r[2], r[3], r[4], short_url])
 
-        # 3. COUNTS
-        print("\n--- [SUMMARY] ---")
-        cur.execute("SELECT COUNT(*) FROM processing_tasks;")
-        task_count = cur.fetchone()[0]
-        cur.execute("SELECT COUNT(*) FROM detection_logs;")
-        log_count = cur.fetchone()[0]
-        print(f"Total Tasks: {task_count}")
-        print(f"Total Detection Logs: {log_count}")
-
+        print(tabulate(cleaned_rows, headers=headers, tablefmt="grid"))
+        
         cur.close()
         conn.close()
-        print("\n" + "="*80 + "\n")
-
+        print("\n" + "="*50 + "\n")
+        
     except Exception as e:
-        print(f"❌ Database Error: {e}")
+        print(f"Error checking data: {e}")
 
 if __name__ == "__main__":
-    check_database()
+    check_data()

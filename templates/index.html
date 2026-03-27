@@ -452,15 +452,17 @@
                 // Display extracted text or the event message
                 const displayInfo = log.plate_number ? `<span class="text-indigo-400 font-bold text-lg">${log.plate_number}</span>` : log.event;
 
-                // R2 Status Badge
-                const r2StatusHtml = log.r2_saved
-                    ? `<span class="flex items-center gap-1 text-[10px] text-emerald-400 bg-emerald-400/10 px-2 py-0.5 rounded-full border border-emerald-400/20" title="${log.r2_url}">
+                // R2 Status Badge (Use explicit flag from backend)
+                const isR2 = log.saved_to_r2 === true;
+                
+                const r2StatusHtml = isR2
+                    ? `<span class="flex items-center gap-1 text-[10px] text-emerald-400 bg-emerald-400/10 px-2 py-0.5 rounded-full border border-emerald-400/20">
                         <svg class="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20"><path d="M5.5 13a3.5 3.5 0 01-.369-6.98 4 4 0 117.753-1.977A4.5 4.5 0 1113.5 13H5.5z"></path></svg>
                         Saved
                        </span>`
                     : `<span class="flex items-center gap-1 text-[10px] text-slate-500 bg-slate-500/10 px-2 py-0.5 rounded-full border border-slate-500/20">
                         <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"></path></svg>
-                        Local Only
+                        Local
                        </span>`;
 
                 row.innerHTML = `
@@ -655,7 +657,8 @@
                     cropHtml = `<img src="${log.image_plate}" onclick="showImage('${log.image_plate}', 'Plate Scan')" class="h-8 rounded cursor-pointer hover:scale-125 transition-transform">`;
                 }
 
-                const r2Icon = log.r2_saved 
+                const isR2 = log.saved_to_r2 === true;
+                const r2Icon = isR2 
                     ? `<svg class="w-3 h-3 text-emerald-400" fill="currentColor" viewBox="0 0 20 20" title="Saved to R2"><path d="M5.5 13a3.5 3.5 0 01-.369-6.98 4 4 0 117.753-1.977A4.5 4.5 0 1113.5 13H5.5z"></path></svg>`
                     : `<svg class="w-3 h-3 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"></path></svg>`;
 
