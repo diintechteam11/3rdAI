@@ -511,6 +511,46 @@
         const activeCamerasContainer = document.getElementById('activeCameras');
         const connectBtn = document.getElementById('connectBtn');
         let activeCameraIntervals = {};
+        let activeWebSockets = {};
+
+        function startWebSocket(id) {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${protocol}//${window.location.host}/ws-camera/${id}`;
+            const ws = new WebSocket(wsUrl);
+            const canvas = document.getElementById(`canvas-${id}`);
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+            const img = new Image();
+
+            ws.binaryType = 'arraybuffer';
+            ws.onmessage = (event) => {
+                const blob = new Blob([event.data], { type: 'image/jpeg' });
+                const url = URL.createObjectURL(blob);
+                img.onload = () => {
+                    // Update canvas size if needed to match frame aspect ratio
+                    if (canvas.width !== img.width) {
+                        canvas.width = img.width;
+                        canvas.height = img.height;
+                    }
+                    ctx.drawImage(img, 0, 0);
+                    URL.revokeObjectURL(url);
+                };
+                img.src = url;
+            };
+
+            ws.onerror = (e) => console.error(`WS Error for ${id}:`, e);
+            ws.onclose = () => {
+                console.log(`WS Closed for ${id}`);
+                // Try to reconnect if the camera is still supposed to be active
+                if (activeWebSockets[id]) {
+                    setTimeout(() => {
+                        if (activeWebSockets[id]) activeWebSockets[id] = startWebSocket(id);
+                    }, 2000);
+                }
+            };
+            
+            return ws;
+        }
 
         cameraForm.addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -570,7 +610,8 @@
                         clearInterval(interval);
                         statusLabel.innerHTML = '<span class="w-1.5 h-1.5 bg-emerald-500 rounded-full"></span> CONNECTED';
                         statusLabel.classList.add('text-emerald-400');
-                        streamImg.src = `/camera-stream/${id}`;
+                        // Start WebSocket Stream
+                        activeWebSockets[id] = startWebSocket(id);
                         // Start polling for logs
                         activeCameraIntervals[id] = setInterval(() => pollCameraLogs(id), 1000);
                     } else if (data.status === 'failed') {
@@ -602,8 +643,8 @@
                     </button>
                 </div>
                 <div class="grid grid-cols-1 lg:grid-cols-2">
-                    <div class="aspect-video bg-black relative flex items-center justify-center">
-                        <img id="stream-${id}" class="w-full h-full object-contain" src="">
+                    <div class="aspect-video bg-black relative flex items-center justify-center overflow-hidden">
+                        <canvas id="canvas-${id}" class="w-full h-full object-contain"></canvas>
                         <div id="status-label-${id}" class="absolute top-4 left-4 glass px-3 py-1.5 rounded-lg text-[10px] font-bold text-white uppercase tracking-widest flex items-center gap-2">
                             <span class="w-1.5 h-1.5 bg-amber-500 rounded-full animate-ping"></span> INITIALIZING...
                         </div>
@@ -684,6 +725,10 @@
                 await fetch(`/disconnect-camera/${id}`, { method: 'POST' });
                 clearInterval(activeCameraIntervals[id]);
                 delete activeCameraIntervals[id];
+                if (activeWebSockets[id]) {
+                    activeWebSockets[id].close();
+                    delete activeWebSockets[id];
+                }
                 document.getElementById(`cam-container-${id}`).remove();
             } catch (err) {
                 alert("Failed to disconnect: " + err.message);

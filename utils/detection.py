@@ -143,7 +143,7 @@ def save_to_db(data):
 os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = "rtsp_transport;tcp"
 
 # PLATE RECOGNIZER CLOUD API CONFIGURATION
-PLATE_RECOGNIZER_TOKEN = "b7352531317f55e343ae5b91a74df3a79bf7bbd5"
+PLATE_RECOGNIZER_TOKEN = "cabf3c65d1ec04ff52c1d5d0489fb083cdd2e305"
 PLATE_RECOGNIZER_URL = 'https://api.platerecognizer.com/v1/plate-reader/'
 
 # OCR INITIALIZATION
@@ -279,6 +279,7 @@ class LiveCameraProcessor:
         self.frame_count = 0
         self.process_every_n_frames = 2 # Process every 2nd frame for speed
         
+        self.latest_jpeg = None # Pre-encoded JPEG for WebSocket delivery
         self.cap = None
         self.reader_thread = None
         self.processor_thread = None
@@ -288,6 +289,15 @@ class LiveCameraProcessor:
         import threading
         self.orchestrator = threading.Thread(target=self._orchestration_loop, daemon=True)
         self.orchestrator.start()
+
+    def _update_latest_frame(self, frame):
+        if frame is None: return
+        h, w = frame.shape[:2]
+        if w > 1280:
+            frame = cv2.resize(frame, (1280, int(h * (1280/w))))
+        self.latest_frame = frame
+        _, buffer = cv2.imencode('.jpg', frame, [int(cv2.IMWRITE_JPEG_QUALITY), 80])
+        self.latest_jpeg = buffer.tobytes()
 
     def add_log(self, trigger, event, plate=None, obj=None, p_num=None, color=None, r2=False):
         log_entry = {
@@ -377,11 +387,7 @@ class LiveCameraProcessor:
             self.frame_count += 1
             if self.frame_count % self.process_every_n_frames != 0:
                 # Update latest frame for streaming but skip heavy AI
-                h, w = self.raw_frame_buffer.shape[:2]
-                if w > 1280:
-                    self.latest_frame = cv2.resize(self.raw_frame_buffer, (1280, int(h * (1280/w))))
-                else:
-                    self.latest_frame = self.raw_frame_buffer
+                self._update_latest_frame(self.raw_frame_buffer)
                 continue
 
             try:
@@ -482,7 +488,7 @@ class LiveCameraProcessor:
                                     r2=True if r2_plate_url or r2_object_url else False
                                 )
 
-                self.latest_frame = frame
+                self._update_latest_frame(frame)
             except Exception as e:
                 print(f"[DEBUG] Error in processing loop: {e}")
                 time.sleep(0.1)
