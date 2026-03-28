@@ -416,10 +416,18 @@ class LiveCameraProcessor:
                             
                             if unique_track_key not in self.processed_track_ids:
                                 p_fname = f"{trigger_name.replace(' ', '_')}_{obj_id}_{int(time.time())}.jpg"
-                                pad = 20
-                                x1_c, y1_c = max(0, x1-pad), max(0, y1-pad)
-                                x2_c, y2_c = min(frame.shape[1], x2+pad), min(frame.shape[0], y2+pad)
-                                crop = raw_frame[y1_c:y2_c, x1_c:x2_c]
+                                
+                                # Take a TIGHT crop for plates, pad for others
+                                if trigger_name == "Number Plate Detection":
+                                    p_pad = 5
+                                    x1_p, y1_p = max(0, x1-p_pad), max(0, y1-p_pad)
+                                    x2_p, y2_p = min(frame.shape[1], x2+p_pad), min(frame.shape[0], y2+p_pad)
+                                    crop = raw_frame[y1_p:y2_p, x1_p:x2_p]
+                                else:
+                                    pad = 20
+                                    x1_c, y1_c = max(0, x1-pad), max(0, y1-pad)
+                                    x2_c, y2_c = min(frame.shape[1], x2+pad), min(frame.shape[0], y2+pad)
+                                    crop = raw_frame[y1_c:y2_c, x1_c:x2_c]
                                 
                                 if crop.size == 0: continue
                                 
@@ -556,10 +564,18 @@ def process_video(task_id, input_path, output_path, selected_triggers):
                     
                     if unique_track_key not in processed_track_ids:
                         p_fname = f"{trigger_name.replace(' ', '_')}_{obj_id}_{frame_count}.jpg"
-                        pad = 20
-                        x1_c, y1_c = max(0, x1-pad), max(0, y1-pad)
-                        x2_c, y2_c = min(width, x2+pad), min(height, y2+pad)
-                        crop = raw_frame[y1_c:y2_c, x1_c:x2_c]
+                        
+                        # Take a TIGHT crop for plates, pad for others
+                        if trigger_name == "Number Plate Detection":
+                            p_pad = 5
+                            x1_p, y1_p = max(0, x1-p_pad), max(0, y1-p_pad)
+                            x2_p, y2_p = min(width, x2+p_pad), min(height, y2+p_pad)
+                            crop = raw_frame[y1_p:y2_p, x1_p:x2_p]
+                        else:
+                            pad = 20
+                            x1_c, y1_c = max(0, x1-pad), max(0, y1-pad)
+                            x2_c, y2_c = min(width, x2+pad), min(height, y2+pad)
+                            crop = raw_frame[y1_c:y2_c, x1_c:x2_c]
                         
                         if crop.size == 0: continue
                         
