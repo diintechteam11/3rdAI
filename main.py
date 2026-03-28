@@ -223,6 +223,24 @@ async def get_camera_status(camera_id: str):
         return JSONResponse(content={"status": "not_found"}, status_code=404)
     return {"status": camera_processes[camera_id]["processor"].status}
 
+@app.get("/camera-stream/{camera_id}")
+async def camera_stream(camera_id: str):
+    if camera_id not in camera_processes:
+        raise HTTPException(status_code=404, detail="Camera not found")
+    
+    processor = camera_processes[camera_id]["processor"]
+    
+    def generate():
+        while True:
+            if processor.latest_jpeg:
+                yield (b'--frame\r\n'
+                       b'Content-Type: image/jpeg\r\n\r\n' + processor.latest_jpeg + b'\r\n')
+            
+            import time
+            time.sleep(0.04) # ~25fps
+
+    return StreamingResponse(generate(), media_type="multipart/x-mixed-replace; boundary=frame")
+
 @app.websocket("/ws-camera/{camera_id}")
 async def websocket_camera_stream(websocket: WebSocket, camera_id: str):
     if camera_id not in camera_processes:
@@ -231,21 +249,20 @@ async def websocket_camera_stream(websocket: WebSocket, camera_id: str):
 
     await websocket.accept()
     processor = camera_processes[camera_id]["processor"]
+    processor.add_log("System", "WebSocket Client Connected")
     
-    last_sent_time = 0
     try:
         while True:
-            # Send at most 30fps or match source speed
+            # Send the pre-encoded JPEG
             if processor.latest_jpeg:
                 await websocket.send_bytes(processor.latest_jpeg)
             
-            # Tiny sleep to prevent tight loop if no frame
             import asyncio
-            await asyncio.sleep(0.03) # ~30fps
+            await asyncio.sleep(0.04) # ~25fps
     except WebSocketDisconnect:
-        print(f"WebSocket client disconnected from camera {camera_id}")
+        processor.add_log("System", "WebSocket Client Disconnected")
     except Exception as e:
-        print(f"WebSocket error: {e}")
+        processor.add_log("System", f"WebSocket Error: {e}")
 
 @app.get("/camera-logs/{camera_id}")
 async def get_camera_logs(camera_id: str):
