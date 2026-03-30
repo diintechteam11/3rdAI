@@ -3,76 +3,125 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Documentation | AI Traffic Analytics</title>
+    <title>System Architecture | AI Recording Platform</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
         body { font-family: 'Outfit', sans-serif; background-color: #020617; color: #cbd5e1; }
-        .glass { background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.1); }
+        .glass { background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.08); }
+        .text-gradient { background: linear-gradient(to right, #818cf8, #c084fc); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
     </style>
 </head>
-<body class="min-h-screen p-8">
-    <div class="max-w-4xl mx-auto">
-        <header class="mb-12 flex justify-between items-center">
-            <h1 class="text-3xl font-bold text-white">Documentation</h1>
-            <a href="/" class="text-indigo-400 hover:text-white transition-colors flex items-center gap-2">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+<body class="min-h-screen p-8 lg:p-16">
+    <div class="max-w-5xl mx-auto">
+        <header class="mb-20 flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
+            <div>
+                <h1 class="text-4xl lg:text-6xl font-bold text-white tracking-tight mb-4 text-gradient">System Architecture</h1>
+                <p class="text-slate-500 font-medium">Technical Specification & Operational Blueprint</p>
+            </div>
+            <a href="/" class="px-6 py-2.5 glass text-white rounded-xl font-bold text-sm hover:bg-white/10 transition-all flex items-center gap-2">
+                <svg class="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M10 19l-7-7m0 0l7-7m-7 7h18" stroke-width="2"></path></svg>
                 Back to Dashboard
             </a>
         </header>
 
-        <div class="space-y-12">
-            <section class="glass p-8 rounded-3xl">
-                <h2 class="text-xl font-semibold mb-4 text-indigo-400">System Overview</h2>
-                <p class="leading-relaxed mb-4">
-                    The AI Traffic Analytics system uses Computer Vision to detect traffic violations and identify vehicles in real-time. 
-                    It leverages YOLOv8 (You Only Look Once) architectures for high-speed object detection and EasyOCR for optical character recognition on license plates.
-                </p>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
-                    <div class="p-4 bg-white/5 rounded-xl border border-white/5">
-                        <h3 class="font-medium text-white mb-2">ANPR Engine</h3>
-                        <p class="text-sm">Automatic Number Plate Recognition. Crops the plate and uses deep learning to extract alphanumeric characters.</p>
-                    </div>
-                    <div class="p-4 bg-white/5 rounded-xl border border-white/5">
-                        <h3 class="font-medium text-white mb-2">Violation Triggers</h3>
-                        <p class="text-sm">Monitors for Helmet violations, Triple Riding (3+ on a bike), and Seatbelt usage for cars.</p>
-                    </div>
+        <main class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <!-- Left Sidebar (Module Overview) -->
+            <aside class="lg:col-span-1 space-y-6">
+                <div class="glass p-8 rounded-3xl border-indigo-500/10">
+                    <h3 class="text-indigo-400 font-bold uppercase text-[10px] tracking-widest mb-6">Core Modules</h3>
+                    <ul class="space-y-6">
+                        <li>
+                            <div class="text-white font-bold mb-1">Camera Registry</div>
+                            <p class="text-xs text-slate-500">Inventory and identification of all connected RTSP/IP units.</p>
+                        </li>
+                        <li>
+                            <div class="text-white font-bold mb-1">Recording Control</div>
+                            <p class="text-xs text-slate-500">Manual and automated start/stop management.</p>
+                        </li>
+                        <li>
+                            <div class="text-white font-bold mb-1">Scheduler</div>
+                            <p class="text-xs text-slate-500">24/7 or custom time-window recording profiles.</p>
+                        </li>
+                        <li>
+                            <div class="text-white font-bold mb-1">Analysis Trigger</div>
+                            <p class="text-xs text-slate-500">Auto-start capture synchronized with AI detection firing.</p>
+                        </li>
+                    </ul>
                 </div>
-            </section>
 
-            <section class="glass p-8 rounded-3xl">
-                <h2 class="text-xl font-semibold mb-6 text-indigo-400">Intelligent Tracking & Deduplication</h2>
-                <div class="space-y-4">
-                    <div class="flex gap-4">
-                        <div class="w-8 h-8 rounded-full bg-indigo-500/20 flex items-center justify-center text-indigo-400 shrink-0 font-bold">1</div>
-                        <div>
-                            <h4 class="text-white font-medium mb-1">Persistent ID Tracking</h4>
-                            <p class="text-sm text-slate-400">The system assigns a unique ID to every vehicle. Even if the vehicle moves across multiple frames, it is recognized as the same entity.</p>
+                <div class="glass p-8 rounded-3xl border-indigo-500/10 bg-indigo-600/5">
+                    <h3 class="text-white font-bold mb-2">DB Requirements</h3>
+                    <p class="text-xs text-slate-400 leading-relaxed">
+                        Every transaction is stored with UTC ISO 8601 timestamps for audit compliance. The system ensures 100% data traceability from trigger to video file.
+                    </p>
+                </div>
+            </aside>
+
+            <!-- Main Content Area -->
+            <div class="lg:col-span-2 space-y-12">
+                <section class="glass p-10 rounded-[40px] relative overflow-hidden">
+                    <div class="absolute right-0 top-0 w-32 h-32 bg-indigo-600/10 blur-3xl rounded-full"></div>
+                    <h2 class="text-2xl font-bold text-white mb-6">System Overview</h2>
+                    <p class="text-slate-400 leading-relaxed mb-8">
+                        The Camera Recording API acts as the central control plane for multi-camera video infrastructures. 
+                        It enables developers to build interfaces for live surveillance management, secure video storage, 
+                        and AI-driven reporting.
+                    </p>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="p-6 bg-white/2 rounded-2xl border border-white/5">
+                            <h4 class="text-white font-bold mb-2 flex items-center gap-2">
+                                <span class="w-2 h-2 bg-emerald-500 rounded-full"></span>
+                                Manual Mode
+                            </h4>
+                            <p class="text-xs text-slate-500">On-demand capture for incident recording and manual monitoring.</p>
+                        </div>
+                        <div class="p-6 bg-white/2 rounded-2xl border border-white/5">
+                            <h4 class="text-white font-bold mb-2 flex items-center gap-2">
+                                <span class="w-2 h-2 bg-indigo-500 rounded-full"></span>
+                                Analysis Mode
+                            </h4>
+                            <p class="text-xs text-slate-500">Synchronized auto-capture triggered by Computer Vision events.</p>
                         </div>
                     </div>
-                    <div class="flex gap-4">
-                        <div class="w-8 h-8 rounded-full bg-indigo-500/20 flex items-center justify-center text-indigo-400 shrink-0 font-bold">2</div>
-                        <div>
-                            <h4 class="text-white font-medium mb-1">OCR Stabilization</h4>
-                            <p class="text-sm text-slate-400">By comparing extracted text strings, the system prevents logging the same vehicle twice even if the tracking ID switches due to temporary obstruction.</p>
+                </section>
+
+                <section class="glass p-10 rounded-[40px]">
+                    <h2 class="text-2xl font-bold text-white mb-8">Storage Architecture</h2>
+                    <div class="space-y-8">
+                        <div class="flex gap-6">
+                            <div class="w-12 h-12 glass rounded-2xl flex items-center justify-center shrink-0">
+                                <svg class="w-6 h-6 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2v-5a2 2 0 00-2-2H9l-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" stroke-width="2"></path></svg>
+                            </div>
+                            <div>
+                                <h4 class="text-white font-bold mb-2">Local / Hot Storage</h4>
+                                <p class="text-sm text-slate-500 leading-relaxed">
+                                    Buffered recordings and processed frames are stored in the <code class="text-indigo-300">/static/recordings</code> directory for instant playback.
+                                </p>
+                            </div>
+                        </div>
+                        <div class="flex gap-6">
+                            <div class="w-12 h-12 glass rounded-2xl flex items-center justify-center shrink-0">
+                                <svg class="w-6 h-6 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" stroke-width="2"></path></svg>
+                            </div>
+                            <div>
+                                <h4 class="text-white font-bold mb-2">Cloud Archive (R2/S3)</h4>
+                                <p class="text-sm text-slate-500 leading-relaxed">
+                                    AI detection crops are automatically offloaded to Cloudflare R2 for long-term accessibility and global CDN delivery.
+                                </p>
+                            </div>
                         </div>
                     </div>
-                </div>
-            </section>
+                </section>
 
-            <section class="glass p-8 rounded-3xl">
-                <h2 class="text-xl font-semibold mb-4 text-indigo-400">Performance Tips</h2>
-                <ul class="list-disc list-inside space-y-3 text-sm text-slate-400">
-                    <li>Use <span class="text-white font-mono">.mp4</span> containers with H.264 codec for best browser compatibility.</li>
-                    <li>Avoid highly blurry footage; OCR accuracy improves significantly with 720p or 1080p resolution.</li>
-                    <li>The system dynamically skips non-essential tasks to keep the background processing under 2x the video length.</li>
-                </ul>
-            </section>
-        </div>
-
-        <footer class="mt-16 text-center text-slate-500 text-xs py-8 border-t border-white/5">
-            © 2026 AI Traffic Engine | Confidential Documentation
-        </footer>
+                <section class="p-8 border-t border-white/5">
+                    <p class="text-xs text-slate-600 text-center italic">
+                        The 3rdAI platform operates under a zero-trust architecture model. All recording paths are cryptographically signed and tracked via unique task identifiers.
+                    </p>
+                </section>
+            </div>
+        </main>
     </div>
 </body>
 </html>

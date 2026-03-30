@@ -7,10 +7,12 @@ from ultralytics import YOLO
 import requests
 import re
 import boto3
-import psycopg2
+import subprocess
+from utils.db import SessionLocal, Detection, Camera, RecordingSession, AnalysisSession
+from sqlalchemy.sql import func
+
 from dotenv import load_dotenv
 from datetime import datetime
-import subprocess
 
 # Load environment variables
 load_dotenv()
@@ -65,14 +67,11 @@ DB_USER = os.getenv("DB_USER", "db_3rdai_user")
 DB_PASS = os.getenv("DB_PASS", "WHbW4G3mT0qzgGmPODeLCWwnVwlcR6xO")
 
 def save_to_db(data):
-    # Validation: Do not save if mandatory fields are missing
     trigger = data.get('trigger')
     plate_number = data.get('plate_number')
     image_plate_url = data.get('image_plate_url')
     image_object_url = data.get('image_object_url')
 
-    # If it's a plate detection, we must have a plate number (not UNREADABLE if possible, but at least not None)
-    # and at least one image URL
     if trigger == "Number Plate Detection":
         if not plate_number or plate_number in [None, "", "N/A", "SCANNING...", "UNREADABLE"] or not is_valid_indian_plate(plate_number):
             print(f"DEBUG: Skipping DB save - invalid plate: {plate_number}")
@@ -81,63 +80,31 @@ def save_to_db(data):
             print("DEBUG: Skipping DB save - missing images for plate detection.")
             return
 
-    # General check: if both images are missing and it's a visual detection, maybe skip?
-    # User said: "when image,plate number is null then not save in db"
     if not image_plate_url and not image_object_url and not plate_number:
         print("DEBUG: Skipping DB save - all key fields are null.")
         return
 
+    db = SessionLocal()
     try:
-        conn = psycopg2.connect(host=DB_HOST, database=DB_NAME, user=DB_USER, password=DB_PASS)
-        cur = conn.cursor()
-        # Initialize table if not exists with correct columns
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS detections (
-                id SERIAL PRIMARY KEY,
-                task_id VARCHAR(100),
-                filename VARCHAR(255),
-                timestamp FLOAT,
-                trigger VARCHAR(100),
-                event TEXT,
-                image_plate_url TEXT,
-                image_object_url TEXT,
-                plate_number VARCHAR(100),
-                vehicle_color VARCHAR(100),
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
-        """)
-        # Ensure all columns exist
-        cur.execute("ALTER TABLE detections ADD COLUMN IF NOT EXISTS task_id VARCHAR(100);")
-        cur.execute("ALTER TABLE detections ADD COLUMN IF NOT EXISTS filename VARCHAR(255);")
-        cur.execute("ALTER TABLE detections ADD COLUMN IF NOT EXISTS timestamp FLOAT;")
-        cur.execute("ALTER TABLE detections ADD COLUMN IF NOT EXISTS trigger VARCHAR(100);")
-        cur.execute("ALTER TABLE detections ADD COLUMN IF NOT EXISTS event TEXT;")
-        cur.execute("ALTER TABLE detections ADD COLUMN IF NOT EXISTS image_plate_url TEXT;")
-        cur.execute("ALTER TABLE detections ADD COLUMN IF NOT EXISTS image_object_url TEXT;")
-        cur.execute("ALTER TABLE detections ADD COLUMN IF NOT EXISTS plate_number VARCHAR(100);")
-        cur.execute("ALTER TABLE detections ADD COLUMN IF NOT EXISTS vehicle_color VARCHAR(100);")
-        
-        cur.execute("""
-            INSERT INTO detections 
-            (task_id, filename, timestamp, trigger, event, image_plate_url, image_object_url, plate_number, vehicle_color)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-        """, (
-            data.get('task_id'),
-            data.get('filename'),
-            data.get('timestamp'),
-            data.get('trigger'),
-            data.get('event'),
-            data.get('image_plate_url'),
-            data.get('image_object_url'),
-            data.get('plate_number'),
-            data.get('vehicle_color')
-        ))
-        conn.commit()
-        print(f"DEBUG: SUCCESS! Saved Detection to Database (Task: {data.get('task_id')})")
-        cur.close()
-        conn.close()
+        new_detection = Detection(
+            task_id=data.get('task_id'),
+            filename=data.get('filename'),
+            timestamp=data.get('timestamp'),
+            trigger=data.get('trigger'),
+            event=data.get('event'),
+            image_plate_url=data.get('image_plate_url'),
+            image_object_url=data.get('image_object_url'),
+            plate_number=data.get('plate_number'),
+            vehicle_color=data.get('vehicle_color')
+        )
+        db.add(new_detection)
+        db.commit()
+        print(f"DEBUG: SUCCESS! Saved Detection to Database via SQLAlchemy (Task: {data.get('task_id')})")
     except Exception as e:
+        db.rollback()
         print(f"DEBUG: Database Save FAILED: {e}")
+    finally:
+        db.close()
 
 # FORCE TCP for RTSP globally before any CV2 operations
 os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = "rtsp_transport;tcp"
@@ -283,6 +250,15 @@ class LiveCameraProcessor:
         self.cap = None
         self.reader_thread = None
         self.processor_thread = None
+        
+        # Recording state
+        self.is_recording = False
+        self.video_writer = None
+        self.recording_session_id = None
+        self.analysis_session_id = None
+        self.recording_start_time = None
+        self.recording_file_path = None
+        self.recording_source = "manual" # manual | auto | analysis
         
         self.add_log("System", "Initiating camera connection sequence...")
         
@@ -497,11 +473,111 @@ class LiveCameraProcessor:
                                 )
 
                 self._update_latest_frame(frame)
+                
+                # Write to recording if active
+                if self.is_recording and self.video_writer:
+                    self.video_writer.write(frame)
+                    
             except Exception as e:
                 print(f"[DEBUG] Error in processing loop: {e}")
                 time.sleep(0.1)
 
+    def start_recording(self, initiated_by="System", note=None, source="manual", analysis_session_id=None):
+        if self.is_recording:
+            return False, "Already recording"
+        
+        try:
+            self.recording_source = source
+            self.analysis_session_id = analysis_session_id
+            self.recording_session_id = str(uuid.uuid4())
+            
+            # Setup output path
+            now = datetime.now()
+            timestamp_str = now.strftime("%Y%m%d_%H%M%S")
+            safe_name = re.sub(r'[^a-zA-Z0-9]', '_', self.camera_id)
+            filename = f"{safe_name}_{timestamp_str}.mp4"
+            
+            output_dir = os.path.join("static", "recordings", self.camera_id)
+            os.makedirs(output_dir, exist_ok=True)
+            self.recording_file_path = os.path.join(output_dir, filename)
+            
+            # Create DB record
+            db = SessionLocal()
+            new_session = RecordingSession(
+                id=self.recording_session_id,
+                camera_id=self.camera_id,
+                video_name=filename,
+                file_path=f"/static/recordings/{self.camera_id}/{filename}",
+                source=source,
+                initiated_by=initiated_by,
+                description=note,
+                started_at=func.now()
+            )
+            db.add(new_session)
+            
+            # If it's an analysis session, update it
+            if analysis_session_id:
+                analysis = db.query(AnalysisSession).filter(AnalysisSession.id == analysis_session_id).first()
+                if analysis:
+                    analysis.recording_session_id = self.recording_session_id
+                    analysis.capture_started_at = func.now()
+            
+            db.commit()
+            db.close()
+            
+            # Initialize VideoWriter (we'll start writing in the processor loop)
+            # We need width and height from first frame or cap
+            if self.latest_frame is not None:
+                h, w = self.latest_frame.shape[:2]
+                fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+                self.video_writer = cv2.VideoWriter(self.recording_file_path, fourcc, 20, (w, h))
+            
+            self.is_recording = True
+            self.recording_start_time = time.time()
+            self.add_log("Recording", f"Started recording (Source: {source})", r2=False)
+            return True, self.recording_session_id
+        except Exception as e:
+            print(f"Error starting recording: {e}")
+            return False, str(e)
+
+    def stop_recording(self, stopped_by="System"):
+        if not self.is_recording:
+            return False, "Not recording"
+        
+        try:
+            self.is_recording = False
+            if self.video_writer:
+                self.video_writer.release()
+                self.video_writer = None
+            
+            duration = int(time.time() - self.recording_start_time) if self.recording_start_time else 0
+            
+            db = SessionLocal()
+            session = db.query(RecordingSession).filter(RecordingSession.id == self.recording_session_id).first()
+            if session:
+                session.stopped_at = func.now()
+                session.duration_secs = duration
+                session.stopped_by = stopped_by
+            
+            # If it was an analysis session
+            if self.analysis_session_id:
+                analysis = db.query(AnalysisSession).filter(AnalysisSession.id == self.analysis_session_id).first()
+                if analysis:
+                    analysis.capture_ended_at = func.now()
+                    analysis.stopped_by = stopped_by
+
+            db.commit()
+            db.close()
+            
+            self.add_log("Recording", f"Stopped recording. Duration: {duration}s", r2=False)
+            return True, self.recording_session_id
+        except Exception as e:
+            print(f"Error stopping recording: {e}")
+            return False, str(e)
+
     def stop(self):
+        if self.is_recording:
+            self.stop_recording()
         self.is_running = False
         if hasattr(self, 'cap') and self.cap: self.cap.release()
 
