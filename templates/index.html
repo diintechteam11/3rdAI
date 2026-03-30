@@ -3,388 +3,358 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3rdAI | Advanced Analytics Dashboard v1.4</title>
+    <title>3rdAI | Command Dashboard v1.5</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Fira+Code:wght@400&display=swap" rel="stylesheet">
     <style>
-        :root { --bg: #020617; --glass: rgba(15, 23, 42, 0.7); --indigo: #6366f1; --emerald: #10b981; --rose: #f43f5e; }
+        :root { --bg: #020617; --glass: rgba(15, 23, 42, 0.75); --indigo: #6366f1; --emerald: #10b981; --rose: #f43f5e; }
         body { font-family: 'Outfit', sans-serif; background: var(--bg); color: #f1f5f9; overflow-x: hidden; }
         .glass { background: var(--glass); backdrop-filter: blur(20px); border: 1px solid rgba(255, 255, 255, 0.05); }
         .mono { font-family: 'Fira Code', monospace; }
         .custom-scrollbar::-webkit-scrollbar { width: 4px; height: 4px; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); border-radius: 10px; }
         .recording-pulse { animation: pulse-red 2s infinite; }
-        @keyframes pulse-red { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.5; transform: scale(0.95); } }
+        @keyframes pulse-red { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.5; transform: scale(1.02); } }
         .log-item { animation: slide-in 0.3s ease-out; }
         @keyframes slide-in { from { transform: translateX(20px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
-        .btn-ready { transition: all 0.2s; } .btn-ready:active { transform: scale(0.95); }
+        .btn-ready { transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); cursor: pointer; } 
+        .btn-ready:active { transform: scale(0.9); }
+        .btn-ready:disabled { opacity: 0.4; pointer-events: none; }
     </style>
 </head>
 <body class="min-h-screen flex flex-col h-screen overflow-hidden">
 
-    <!-- Navbar -->
-    <header class="h-16 glass flex items-center justify-between px-8 z-50 border-b border-white/5">
+    <!-- Top Navbar -->
+    <header class="h-16 glass flex items-center justify-between px-8 z-50 border-b border-white/5 bg-slate-950/40">
         <div class="flex items-center gap-3">
-            <div class="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-600/20">
+            <div class="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-600/30">
                 <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" stroke-width="2.5"></path></svg>
             </div>
-            <h1 class="text-xl font-bold tracking-tight uppercase">3rdAI <span class="text-indigo-400">Enterprise</span></h1>
+            <h1 class="text-xl font-bold tracking-tight uppercase">3rdAI <span class="text-indigo-400">Command</span></h1>
         </div>
-        <div class="flex items-center gap-8">
-            <div class="flex gap-2 items-center bg-white/5 px-4 py-1.5 rounded-full border border-white/10">
-                <span class="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
-                <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest" id="conStatus">Service Synchronized</span>
+        <div class="flex items-center gap-6">
+            <div class="px-4 py-1 bg-emerald-500/10 text-emerald-500 rounded-full border border-emerald-500/20 text-[10px] font-bold uppercase tracking-widest flex items-center gap-2">
+                 <span class="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span> Service Operational
             </div>
-            <button onclick="toggleModal('camModal')" class="px-6 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-full text-xs font-bold tracking-widest transition-all shadow-lg shadow-indigo-600/20">Add Camera</button>
+            <button onclick="toggleModal('camModal')" class="px-6 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-full text-xs font-bold tracking-widest transition-all shadow-lg active:scale-95">Register Stream</button>
         </div>
     </header>
 
     <div class="flex-1 flex overflow-hidden">
         
-        <!-- Sidebar: Recorded Archives -->
+        <!-- Sidebar: Recorded Archives (Left) -->
         <aside class="w-80 glass border-r border-white/5 flex flex-col side-panel">
-            <div class="p-6 border-b border-white/5 flex justify-between items-center bg-white/10 backdrop-blur-md">
-                <div>
-                     <h2 class="text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em]">Storage Cache</h2>
-                     <h3 class="text-xs font-bold text-white mt-1">Recorded Archive</h3>
-                </div>
-                <span id="recStats" class="text-[9px] text-indigo-400 font-bold border border-indigo-400/30 px-2 py-0.5 rounded uppercase">0 Files</span>
+            <div class="p-6 border-b border-white/5 flex justify-between items-center bg-white/5">
+                <h2 class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Library cache</h2>
+                <span id="archiveStats" class="text-[9px] text-indigo-400 font-bold bg-indigo-400/10 px-2 py-0.5 rounded uppercase">0 Files</span>
             </div>
             <div id="recordingList" class="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
-                <!-- Recorded Sessions go here -->
+                <!-- Recording items injected here -->
             </div>
         </aside>
 
-        <!-- Main Content Area -->
-        <main class="flex-1 flex flex-col overflow-hidden">
-            <!-- Filter Bar -->
+        <!-- Main Stream Grid (Center) -->
+        <main class="flex-1 flex flex-col overflow-hidden bg-slate-950/20">
             <div class="h-14 glass flex items-center justify-between px-6 border-b border-white/5 bg-indigo-600/5">
                 <div class="flex gap-8">
-                    <button onclick="filterMode('all')" class="text-[10px] font-bold uppercase tracking-[0.15em] text-slate-500 hover:text-white transition-all view-filter active" data-mode="all">All Channels</button>
-                    <button onclick="filterMode('active')" class="text-[10px] font-bold uppercase tracking-[0.15em] text-indigo-400 hover:text-white transition-all view-filter" data-mode="active">Active Monitoring</button>
+                    <button onclick="filterMode('all')" class="text-[10px] font-bold uppercase tracking-widest text-slate-500 hover:text-white transition-all view-filter active" data-mode="all">All Channels</button>
+                    <button onclick="filterMode('active')" class="text-[10px] font-bold uppercase tracking-widest text-emerald-400 hover:text-white transition-all view-filter" data-mode="active">Active Streams</button>
                 </div>
-                <button onclick="toggleModal('uploadModal')" class="text-[10px] font-bold uppercase tracking-[0.15em] text-emerald-400 hover:text-white transition-all">Processed Media</button>
             </div>
             
             <div id="streamGrid" class="flex-1 overflow-y-auto p-8 space-y-12 custom-scrollbar">
-                <!-- Connected Camera Cards -->
-                <div id="welcomeMessage" class="h-full flex flex-col items-center justify-center opacity-30">
+                <div id="welcomeMsg" class="h-full flex flex-col items-center justify-center opacity-30 mt-20">
                     <svg class="w-24 h-24 text-slate-700 mb-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" stroke-width="2"></path></svg>
                     <h4 class="text-2xl font-bold uppercase tracking-[0.3em] text-slate-700">Digital Horizon Empty</h4>
-                    <p class="text-xs font-bold text-slate-600 mt-2 uppercase tracking-widest">Connect an RTSP Stream to begin real-time analysis</p>
+                    <p class="text-xs font-bold text-slate-600 mt-2 uppercase tracking-widest">Awaiting RTSP Handshake Protocols</p>
                 </div>
             </div>
         </main>
 
-        <!-- Analytics Feed Sidebar -->
+        <!-- Neural Output Sidebar (Right) -->
         <aside class="w-[480px] glass border-l border-white/5 flex flex-col">
-            <div class="p-6 border-b border-white/5 bg-emerald-600/5 backdrop-blur-md">
-                 <h2 class="text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em]">Neural Output</h2>
-                 <h3 class="text-xs font-bold text-white mt-1">Live Violation Activity</h3>
+            <div class="p-6 border-b border-white/5 bg-emerald-600/5 flex justify-between items-center">
+                 <h2 class="text-[10px] font-bold text-white uppercase tracking-widest">Neural violation feed</h2>
+                 <button onclick="document.getElementById('analysisFeed').innerHTML=''" class="text-[9px] text-rose-400 font-bold hover:text-rose-300">CLEAR CACHE</button>
             </div>
             <div id="analysisFeed" class="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
-                <!-- Log Cards -->
-                <div class="h-full flex items-center justify-center italic text-xs text-slate-700 uppercase tracking-widest">Awaiting Neural Stimulus...</div>
+                <div class="h-full flex items-center justify-center italic text-xs text-slate-700 uppercase tracking-widest">Silent Analysis Mode Active...</div>
             </div>
         </aside>
     </div>
 
     <!-- Modals -->
-    <div id="camModal" class="hidden fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-        <div class="glass max-w-lg w-full rounded-3xl p-8 border-white/10 shadow-2xl relative">
-            <button onclick="toggleModal('camModal')" class="absolute top-6 right-6 text-slate-500 hover:text-white transition-colors"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12" stroke-width="2.5"></path></svg></button>
-            <h2 class="text-2xl font-bold mb-8 uppercase tracking-tighter">Register New Stream</h2>
+    <div id="camModal" class="hidden fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md">
+        <div class="glass max-w-lg w-full rounded-[2.5rem] p-10 border-white/10 shadow-2xl relative">
+            <button onclick="toggleModal('camModal')" class="absolute top-8 right-10 text-slate-500 hover:text-white"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12" stroke-width="2.5"></path></svg></button>
+            <h2 class="text-3xl font-bold mb-10 tracking-tighter">New Channel Entry</h2>
             <form id="connectForm" class="space-y-6">
-                <input type="text" id="camName" placeholder="Ident Name (e.g. South Gate 01)" class="w-full bg-slate-950/50 border border-white/5 rounded-2xl px-5 py-4 focus:border-indigo-600 focus:outline-none transition-all" required>
-                <input type="text" id="camUrl" placeholder="RTSP://admin:pass@ip:port/path" class="w-full bg-slate-950/50 border border-white/5 rounded-2xl px-5 py-4 focus:border-indigo-600 focus:outline-none transition-all" required>
-                <button type="submit" class="w-full py-4 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-2xl shadow-lg shadow-indigo-600/20 active:scale-95 transition-all">Establish Secure Connection</button>
+                <input type="text" id="camName" placeholder="Ident Name (e.g. Loading Area 01)" class="w-full bg-slate-950/50 border border-white/5 rounded-2xl px-6 py-4 focus:border-indigo-600 focus:outline-none transition-all placeholder:text-slate-700" required>
+                <input type="text" id="camUrl" placeholder="RTSP://admin:password@ip_address:port" class="w-full bg-slate-950/50 border border-white/5 rounded-2xl px-6 py-4 focus:border-indigo-600 focus:outline-none transition-all placeholder:text-slate-700" required>
+                <button type="submit" class="w-full py-5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-2xl shadow-xl shadow-indigo-600/20 active:scale-95 transition-all">Establish Channel Connection</button>
             </form>
         </div>
     </div>
 
-    <div id="recConfigModal" class="hidden fixed inset-0 z-[101] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-        <div class="glass max-w-md w-full rounded-3xl p-8 border-white/10 shadow-2xl relative">
-            <h2 class="text-2xl font-bold mb-4 uppercase tracking-tighter">Initialize Capture</h2>
-            <p class="text-[10px] text-slate-500 uppercase tracking-widest mb-10 font-bold">Configure AI triggers and metadata</p>
+    <div id="startRecModal" class="hidden fixed inset-0 z-[101] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md">
+        <div class="glass max-w-md w-full rounded-[2.5rem] p-10 border-white/10 shadow-2xl relative">
+            <h2 class="text-2xl font-bold mb-2 tracking-tighter">Initialize Capture</h2>
+            <p class="text-[10px] text-slate-500 uppercase tracking-widest font-bold mb-10">Configure neural triggers and metadata</p>
             <form id="recStartForm" class="space-y-8">
-                <input type="text" id="videoTitle" placeholder="Video Session Title" class="w-full bg-slate-950 border border-white/5 rounded-2xl px-5 py-4 focus:outline-none focus:border-emerald-600 transition-all font-bold text-sm" required>
+                <input type="text" id="videoTitle" placeholder="Video Session Title" class="w-full bg-slate-950 border border-white/5 rounded-2xl px-6 py-4 focus:outline-none focus:border-emerald-600 transition-all font-bold text-sm" required>
                 <div class="space-y-4">
-                    <label class="text-[10px] uppercase font-bold text-slate-500 tracking-widest">Active Neural Models</label>
-                    <div class="grid grid-cols-1 gap-3">
-                         <label class="flex items-center gap-4 p-5 rounded-2xl bg-white/5 border border-white/5 cursor-pointer hover:bg-white/10 transition-all">
-                             <input type="checkbox" name="trig" value="Number Plate Detection" checked class="w-5 h-5 rounded-md border-white/10 bg-slate-950 text-indigo-600">
-                             <div>
-                                 <p class="text-xs font-bold text-white">Number Plate Identification</p>
-                                 <p class="text-[9px] text-slate-500 uppercase font-bold tracking-tight mt-0.5">Automated OCR + TrackID Validation</p>
-                             </div>
-                         </label>
-                         <label class="flex items-center gap-4 p-5 rounded-2xl bg-white/5 border border-white/5 cursor-pointer hover:bg-white/10 transition-all">
-                             <input type="checkbox" name="trig" value="Helmet Detection" class="w-5 h-5 rounded-md border-white/10 bg-slate-950 text-indigo-600">
-                             <div>
-                                 <p class="text-xs font-bold text-white">Helmet Compliance</p>
-                                 <p class="text-[9px] text-slate-500 uppercase font-bold tracking-tight mt-0.5">Detect riders without PPE</p>
-                             </div>
-                         </label>
-                    </div>
+                     <label class="text-[10px] uppercase font-bold text-slate-500 tracking-widest">Trigger Synthesis Models</label>
+                     <div class="grid grid-cols-1 gap-2">
+                          <label class="flex items-center gap-4 p-5 rounded-2xl bg-white/5 border border-white/5 cursor-pointer hover:bg-white/10">
+                              <input type="checkbox" name="trig" value="Number Plate Detection" checked class="w-5 h-5 text-indigo-600 rounded">
+                              <span class="text-sm font-bold">Number Plate Analysis</span>
+                          </label>
+                          <label class="flex items-center gap-4 p-5 rounded-2xl bg-white/5 border border-white/5 cursor-pointer hover:bg-white/10">
+                              <input type="checkbox" name="trig" value="Helmet Detection" class="w-5 h-5 text-indigo-600 rounded">
+                              <span class="text-sm font-bold">PPE / Helmet Compliance</span>
+                          </label>
+                     </div>
                 </div>
                 <div class="flex gap-4">
-                    <button type="button" onclick="toggleModal('recConfigModal')" class="flex-1 py-4 bg-slate-900 text-slate-500 font-bold rounded-2xl hover:text-white transition-all">Abort</button>
-                    <button type="submit" class="flex-1 py-4 bg-emerald-600 text-white font-bold rounded-2xl hover:bg-emerald-500 shadow-lg shadow-emerald-600/20 active:scale-95 transition-all">Begin Capture</button>
+                    <button type="button" onclick="toggleModal('startRecModal')" class="flex-1 py-4 bg-slate-900 text-slate-500 font-bold rounded-2xl">Abort</button>
+                    <button type="submit" class="flex-1 py-4 bg-emerald-600 text-white font-bold rounded-2xl shadow-lg shadow-emerald-600/20 active:scale-95">Begin Processing</button>
                 </div>
             </form>
         </div>
     </div>
 
-    <!-- Image Preview Modal -->
-    <div id="imgModal" class="hidden fixed inset-0 z-[300] flex items-center justify-center p-8 bg-black/95 backdrop-blur-md" onclick="this.classList.add('hidden')">
-        <div class="relative group max-w-5xl w-full">
-            <img id="modalImg" class="w-full h-auto rounded-3xl shadow-2xl border-2 border-white/5 transform scale-95 transition-transform duration-300" />
-            <p class="absolute bottom-6 left-1/2 -translate-x-1/2 px-6 py-2 bg-black/60 rounded-full text-white text-[10px] font-bold uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity">Detection Meta Insight Preview</p>
-        </div>
+    <!-- Image Modal -->
+    <div id="imgModal" class="hidden fixed inset-0 z-[300] flex items-center justify-center p-8 bg-black/95 backdrop-blur-xl" onclick="this.classList.add('hidden')">
+        <img id="modalImg" class="max-w-full max-h-full rounded-2xl border-2 border-white/5" />
     </div>
 
-    <!-- JS Implementation -->
+    <!-- Script Entry -->
     <script>
-        let cams = {}; let activeRecs = {}; let seenPlates = new Set(); let currentTarget = null;
-        let wsStreams = {}; let wsLogs = {};
+        let cams = {}; let activeRecs = {}; let seenLog = new Set(); let targetId = null;
+        let wsStream = {}; let wsLogs = {};
 
         function toggleModal(id) { document.getElementById(id).classList.toggle('hidden'); }
 
         const connectForm = document.getElementById('connectForm');
         connectForm.onsubmit = async (e) => {
             e.preventDefault();
-            const btn = connectForm.querySelector('button'); btn.disabled = true; btn.innerText = "ESTABLISHING HANDSHAKE...";
+            const btn = connectForm.querySelector('button'); btn.disabled = true; btn.innerText = "Synchronizing RTSP...";
             const fd = new FormData(); fd.append('name', document.getElementById('camName').value); fd.append('link', document.getElementById('camUrl').value);
             try {
-                const r = await fetch('/connect-camera', { method: 'POST', body: fd });
-                const d = await r.json();
-                if (r.ok) { loadCameras(); toggleModal('camModal'); }
-            } catch(e) { alert("CONNECTION_FAULT: " + e.message); } 
-            finally { btn.disabled = false; btn.innerText = "Establish Secure Connection"; }
+                await fetch('/connect-camera', { method: 'POST', body: fd });
+                loadCameras(); toggleModal('camModal');
+            } catch(e) { alert(e.message); } finally { btn.disabled = false; btn.innerText = "Connect Device"; }
         }
 
         async function loadCameras() {
             const r = await fetch('/api/v1/cameras');
             const d = await r.json();
             const grid = document.getElementById('streamGrid');
-            if (d.cameras.length) document.getElementById('welcomeMessage').classList.add('hidden');
+            if(d.cameras.length) document.getElementById('welcomeMsg').classList.add('hidden');
             
-            // Clean up old streams if they are no longer in DB
-            Object.keys(cams).forEach(id => { if(!d.cameras.find(c=>c.id===id)) { document.getElementById(`view-${id}`)?.remove(); } });
+            // Clean removed cameras
+            document.querySelectorAll('.stream-card').forEach(c => {
+                if(!d.cameras.find(db_c => `card-${db_c.id}` === c.id)) c.remove();
+            });
 
             d.cameras.forEach(c => {
-                if (!document.getElementById(`view-${c.id}`)) {
-                    const el = document.createElement('div');
-                    el.id = `view-${c.id}`;
-                    el.className = "view-block glass rounded-[2.5rem] overflow-hidden border-2 border-white/5 animation-in slide-in-from-bottom duration-500";
-                    el.innerHTML = `
+                cams[c.id] = c;
+                if(!document.getElementById(`card-${c.id}`)) {
+                    const card = document.createElement('div');
+                    card.id = `card-${c.id}`;
+                    card.className = "stream-card glass rounded-[2.5rem] overflow-hidden border-2 border-white/5 animation-in zoom-in duration-500";
+                    card.innerHTML = `
                         <div class="px-8 py-6 border-b border-white/5 flex flex-col md:flex-row justify-between items-center gap-6 bg-white/5">
                             <div class="flex items-center gap-4">
-                               <div id="dot-${c.id}" class="w-3 h-3 bg-slate-600 rounded-full transition-all"></div>
-                               <div>
-                                   <h4 class="text-lg font-bold text-white tracking-tight">${c.name}</h4>
-                                   <p class="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1">${c.ip}</p>
-                               </div>
+                                <span id="dot-${c.id}" class="w-3 h-3 bg-slate-700 rounded-full shadow-lg transition-all"></span>
+                                <div>
+                                    <h4 class="text-lg font-bold text-white tracking-tight">${c.name}</h4>
+                                    <p class="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1">${c.ip}</p>
+                                </div>
                             </div>
-                            <div id="ctrl-${c.id}" class="flex gap-2">
-                                <button onclick="requestStartRec('${c.id}')" id="start-${c.id}" class="px-6 py-2.5 bg-indigo-600/10 hover:bg-indigo-600 text-indigo-400 hover:text-white rounded-2xl text-[10px] font-bold uppercase tracking-widest transition-all border border-indigo-600/20">Initial Record</button>
-                                <button onclick="stopRec('${c.id}')" id="stop-${c.id}" class="hidden px-6 py-2.5 bg-rose-600/10 hover:bg-rose-600 text-rose-400 hover:text-white rounded-2xl text-[10px] font-bold uppercase tracking-widest transition-all border border-rose-600/20">Terminate & Save</button>
-                                <button onclick="disconnect('${c.id}')" class="p-3 bg-white/5 hover:bg-rose-600 text-slate-500 hover:text-white rounded-2xl transition-all"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12" stroke-width="2.5"></path></svg></button>
+                            <div class="flex gap-2">
+                                <button onclick="toggleConnection('${c.id}')" id="conn-btn-${c.id}" class="px-5 py-2.5 bg-white/5 hover:bg-white/10 text-xs font-bold rounded-2xl transition-all border border-white/5">Connect</button>
+                                <button onclick="deletePermanently('${c.id}')" class="p-3 bg-rose-600/10 text-rose-400 hover:bg-rose-600 hover:text-white rounded-2xl transition-all border border-rose-600/20"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" stroke-width="2.5"></path></svg></button>
                             </div>
                         </div>
-                        <div class="aspect-video bg-black relative">
-                            <canvas id="canvas-${c.id}" class="w-full h-full object-contain"></canvas>
-                            <div id="wait-${c.id}" class="absolute inset-0 bg-slate-950 flex flex-col items-center justify-center">
-                                <div class="animate-spin h-10 w-10 border-4 border-indigo-500 border-t-transparent rounded-full mb-6"></div>
-                                <p class="text-[11px] font-bold text-slate-600 uppercase tracking-[0.2em]">Synchronizing Protocol Buffer...</p>
+                        <div class="aspect-video bg-black relative flex flex-col items-center justify-center">
+                            <canvas id="canvas-${c.id}" class="hidden w-full h-full object-contain"></canvas>
+                            <div id="offline-${c.id}" class="text-center">
+                                <svg class="w-12 h-12 text-slate-800 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M18.364 5.636l-1.414 1.414m-1.414 1.414L12 12m0 0l-3.536 3.536m3.536-3.536L15.536 8.464M5.636 18.364l1.414-1.414m1.414-1.414L12 12" stroke-width="2"></path></svg>
+                                <p class="text-[10px] font-bold text-slate-700 uppercase tracking-widest">Feed Offline / Standby</p>
                             </div>
-                            <div id="label-${c.id}" class="hidden absolute top-8 right-8 flex items-center gap-3 bg-rose-600/20 border border-rose-500/40 px-6 py-3 rounded-full recording-pulse">
-                                <span class="w-2.5 h-2.5 bg-rose-500 rounded-full animate-ping"></span>
-                                <span class="text-[10px] font-bold text-white uppercase tracking-[0.25em]">Capturing Neural Stream: <span id="clock-${c.id}" class="mono">00:00</span></span>
+                            <div id="controls-${c.id}" class="hidden absolute bottom-8 left-1/2 -translate-x-1/2 flex gap-3 p-2 glass rounded-2xl border-white/10">
+                                <button onclick="startRecording('${c.id}')" id="btn-start-${c.id}" class="btn-ready px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-[10px] font-bold uppercase tracking-widest shadow-lg shadow-emerald-600/20">START REC</button>
+                                <button onclick="stopRecording('${c.id}')" id="btn-stop-${c.id}" class="hidden btn-ready px-6 py-2.5 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-[10px] font-bold uppercase tracking-widest shadow-lg shadow-rose-600/20">STOP REC</button>
+                                <button onclick="toggleAutoAI('${c.id}')" id="btn-auto-${c.id}" class="btn-ready px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-[10px] font-bold uppercase tracking-widest shadow-lg shadow-indigo-600/20">AUTO AI</button>
+                            </div>
+                            <div id="rec-label-${c.id}" class="hidden absolute top-8 right-8 flex items-center gap-3 bg-rose-600/20 border border-rose-500/40 px-6 py-3 rounded-full recording-pulse">
+                                 <span class="w-2.5 h-2.5 bg-rose-500 rounded-full"></span>
+                                 <span class="text-[10px] font-bold text-white uppercase tracking-[0.2em] mono" id="clock-${c.id}">00:00</span>
                             </div>
                         </div>
                     `;
-                    grid.prepend(el);
-                    pollConn(c.id);
+                    grid.prepend(card);
                 }
-                cams[c.id] = c;
+                updateCardVisuals(c.id, c.status);
             });
         }
 
-        async function pollConn(id) {
-            const intv = setInterval(async () => {
-                const r = await fetch(`/camera-status/${id}`);
-                const d = await r.json();
-                if (d.status === 'connected') {
-                    clearInterval(intv);
-                    document.getElementById(`dot-${id}`).className = "w-3 h-3 bg-emerald-500 rounded-full shadow-lg shadow-emerald-500/50";
-                    document.getElementById(`wait-${id}`).classList.add('hidden');
-                    startStreams(id);
-                }
-            }, 2000);
+        function updateCardVisuals(id, status) {
+            const dot = document.getElementById(`dot-${id}`);
+            const btn = document.getElementById(`conn-btn-${id}`);
+            const offline = document.getElementById(`offline-${id}`);
+            const canvas = document.getElementById(`canvas-${id}`);
+            const ctrl = document.getElementById(`controls-${id}`);
+
+            if(status === 'active' || status === 'recording') {
+                dot.className = "w-3 h-3 bg-emerald-500 rounded-full shadow-lg shadow-emerald-500/50";
+                btn.innerText = "Disconnect"; btn.className = "px-5 py-2.5 bg-rose-600/10 text-rose-500 hover:bg-rose-600 hover:text-white text-xs font-bold rounded-2xl transition-all border border-rose-600/20";
+                offline.classList.add('hidden'); canvas.classList.remove('hidden');
+                ctrl.classList.remove('hidden');
+                if(!wsStream[id]) initStreams(id);
+            } else {
+                dot.className = "w-3 h-3 bg-slate-700 rounded-full shadow-lg";
+                btn.innerText = "Connect"; btn.className = "px-5 py-2.5 bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500 hover:text-white text-xs font-bold rounded-2xl transition-all border border-emerald-500/20";
+                offline.classList.remove('hidden'); canvas.classList.add('hidden');
+                ctrl.classList.add('hidden');
+                if(wsStream[id]) { wsStream[id].close(); delete wsStream[id]; }
+                if(wsLogs[id]) { wsLogs[id].close(); delete wsLogs[id]; }
+            }
         }
 
-        function startStreams(id) {
-            // Stream WS
-            const sWS = new WebSocket((location.protocol==='https:'?'wss:':'ws:')+'//'+location.host+'/ws-camera/'+id);
-            const canvas = document.getElementById(`canvas-${id}`);
-            const ctx = canvas.getContext('2d');
+        async function toggleConnection(id) {
+            const mode = cams[id].status === 'inactive' ? 'connect-camera' : 'disconnect-camera/'+id;
+            const fd = new FormData(); if(mode==='connect-camera') { fd.append('name', cams[id].name); fd.append('link', cams[id].ip); }
+            await fetch('/'+mode, { method: 'POST', body: fd });
+            loadCameras();
+        }
+
+        async function deletePermanently(id) {
+            if(confirm("Permanently erase this stream and history?")) {
+                await fetch(`/api/v1/cameras/${id}`, { method: 'DELETE' });
+                loadCameras();
+            }
+        }
+
+        function initStreams(id) {
+            const stream = new WebSocket((location.protocol==='https:'?'wss:':'ws:')+'//'+location.host+'/ws-camera/'+id);
+            const cvs = document.getElementById(`canvas-${id}`);
+            const ctx = cvs.getContext('2d');
             const img = new Image();
-            sWS.onmessage = (e) => {
-                const u = URL.createObjectURL(new Blob([e.data], {type:'image/jpeg'}));
-                img.onload = () => { canvas.width=img.width; canvas.height=img.height; ctx.drawImage(img,0,0); URL.revokeObjectURL(u); };
+            stream.onmessage = (e) => {
+                const u = URL.createObjectURL(new Blob([e.data], {type: 'image/jpeg'}));
+                img.onload = () => { cvs.width=img.width; cvs.height=img.height; ctx.drawImage(img,0,0); URL.revokeObjectURL(u); };
                 img.src = u;
             };
-            wsStreams[id] = sWS;
+            wsStream[id] = stream;
 
-            // Logs WS (FASTER)
-            const lWS = new WebSocket((location.protocol==='https:'?'wss:':'ws:')+'//'+location.host+'/ws-logs/'+id);
-            lWS.onmessage = (e) => {
+            const logs = new WebSocket((location.protocol==='https:'?'wss:':'ws:')+'//'+location.host+'/ws-logs/'+id);
+            logs.onmessage = (e) => {
                 const d = JSON.parse(e.data);
-                if (d.logs) renderLogItems(id, d.logs);
+                if(d.logs) d.logs.forEach(l => renderLog(id, l));
             };
-            wsLogs[id] = lWS;
+            wsLogs[id] = logs;
         }
 
-        function renderLogItems(id, logs) {
+        function renderLog(id, l) {
             const feed = document.getElementById('analysisFeed');
-            if (feed.querySelector('italic')) feed.innerHTML = '';
-            logs.forEach(log => {
-                const key = `${id}-${log.plate_number || log.timestamp}-${log.trigger}`;
-                if (seenPlates.has(key)) return; seenPlates.add(key);
+            if(feed.querySelector('italic')) feed.innerHTML = '';
+            const key = `${id}-${l.plate_number || l.timestamp}`;
+            if(seenLog.has(key)) return; seenLog.add(key);
 
-                const el = document.createElement('div');
-                el.className = "log-item glass p-5 rounded-3xl border-white/5 space-y-4 hover:border-indigo-600/30 transition-all border-2";
-                el.dataset.cam = id;
-                el.innerHTML = `
-                    <div class="flex justify-between items-center">
-                         <span class="text-[9px] font-bold uppercase tracking-widest bg-indigo-500/10 text-indigo-400 px-3 py-1 rounded-lg border border-indigo-500/20">${log.trigger}</span>
-                         <span class="text-[9px] font-mono text-slate-600">${log.timestamp}</span>
+            const card = document.createElement('div');
+            card.className = "log-item glass p-5 rounded-3xl border-transparent hover:border-white/10 transition-all border-2";
+            card.dataset.cam = id;
+            card.innerHTML = `
+                <div class="flex justify-between items-center mb-4">
+                    <span class="text-[9px] font-bold uppercase tracking-widest bg-indigo-600/10 text-indigo-400 px-3 py-1 rounded-lg">${l.trigger}</span>
+                    <span class="text-[9px] font-mono text-slate-700">${l.timestamp}</span>
+                </div>
+                <div class="flex gap-5">
+                    <img src="${l.image_plate}" class="w-32 h-20 bg-slate-950 rounded-2xl object-cover cursor-zoom-in" onclick="zoom('${l.image_plate}')">
+                    <div class="flex-1 flex flex-col justify-center">
+                        <h5 class="text-indigo-400 font-bold text-lg leading-tight tracking-tighter">${l.plate_number || 'AI TRIGGER'}</h5>
+                        <p class="text-[10px] text-slate-500 font-bold uppercase mt-1">Peripheral: ${cams[id]?.name}</p>
                     </div>
-                    <div class="flex gap-5">
-                         <div class="w-28 h-20 bg-slate-950 rounded-2xl overflow-hidden border border-white/10 shrink-0 cursor-zoom-in group">
-                             ${log.image_plate ? `<img src="${log.image_plate}" class="w-full h-full object-cover transition-transform group-hover:scale-110" onclick="zoomImg('${log.image_plate}')">` : '<div class="w-full h-full animate-pulse bg-slate-900"></div>'}
-                         </div>
-                         <div class="flex-1 flex flex-col justify-center">
-                             <h4 class="text-indigo-400 font-bold text-lg tracking-tighter">${log.plate_number || 'Neural Trigger'}</h4>
-                             <p class="text-[10px] text-slate-500 font-bold uppercase mt-1 tracking-tight">${log.event}</p>
-                             <p class="text-[8px] text-slate-700 font-bold uppercase mt-1 tracking-widest">${cams[id]?.name || 'Peripheral Device'}</p>
-                         </div>
-                    </div>
-                `;
-                feed.prepend(el);
-            });
+                </div>
+            `;
+            feed.prepend(card);
         }
 
-        function requestStartRec(id) { currentTarget = id; toggleModal('recConfigModal'); }
+        function startRecording(id) { targetId = id; toggleModal('startRecModal'); }
         const recStartForm = document.getElementById('recStartForm');
         recStartForm.onsubmit = async (e) => {
             e.preventDefault();
             const n = document.getElementById('videoTitle').value;
-            const t = Array.from(document.querySelectorAll('input[name="trig"]:checked')).map(c=>c.value);
-            const fd = new FormData(); fd.append('initiated_by', 'Ops Commander'); fd.append('video_name', n); fd.append('triggers', t.join(','));
-            const r = await fetch(`/api/v1/cameras/${currentTarget}/recording/start`, { method: 'POST', body: fd });
-            if (r.ok) {
-                document.getElementById(`start-${currentTarget}`).classList.add('hidden');
-                document.getElementById(`stop-${currentTarget}`).classList.remove('hidden');
-                document.getElementById(`label-${currentTarget}`).classList.remove('hidden');
-                activeRecs[currentTarget] = { ts: Date.now() };
-                updateTimer(currentTarget);
-                toggleModal('recConfigModal');
+            const tr = Array.from(document.querySelectorAll('input[name="trig"]:checked')).map(c=>c.value);
+            const fd = new FormData(); fd.append('initiated_by', 'Operator-01'); fd.append('video_name', n); fd.append('triggers', tr.join(','));
+            const r = await fetch(`/api/v1/cameras/${targetId}/recording/start`, { method: 'POST', body: fd });
+            if(r.ok) {
+                document.getElementById(`btn-start-${targetId}`).classList.add('hidden');
+                document.getElementById(`btn-stop-${targetId}`).classList.remove('hidden');
+                document.getElementById(`rec-label-${targetId}`).classList.remove('hidden');
+                activeRecs[targetId] = { s: Date.now() };
+                updateClock(targetId);
+                toggleModal('startRecModal');
             }
         }
 
-        async function stopRec(id) {
-            const fd = new FormData(); fd.append('stopped_by', 'Auto System Trigger');
+        async function stopRecording(id) {
+            const fd = new FormData(); fd.append('stopped_by', 'Manual Override');
             const r = await fetch(`/api/v1/cameras/${id}/recording/stop`, { method: 'POST', body: fd });
-            if (r.ok) {
-                document.getElementById(`start-${id}`).classList.remove('hidden');
-                document.getElementById(`stop-${id}`).classList.add('hidden');
-                document.getElementById(`label-${id}`).classList.add('hidden');
+            if(r.ok) {
+                document.getElementById(`btn-start-${id}`).classList.remove('hidden');
+                document.getElementById(`btn-stop-${id}`).classList.add('hidden');
+                document.getElementById(`rec-label-${id}`).classList.add('hidden');
                 delete activeRecs[id];
-                document.querySelectorAll(`[data-cam="${id}"]`).forEach(e => e.remove());
                 loadArchives();
             }
+        }
+
+        function toggleAutoAI(id) {
+             const btn = document.getElementById(`btn-auto-${id}`);
+             const isActive = btn.classList.contains('bg-indigo-600');
+             btn.className = isActive ? "btn-ready px-6 py-2.5 bg-slate-800 text-slate-500 rounded-xl text-[10px] font-bold uppercase tracking-widest" : "btn-ready px-6 py-2.5 bg-indigo-600 text-white rounded-xl text-[10px] font-bold uppercase tracking-widest";
+             btn.innerText = isActive ? "AI OFF" : "AUTO AI";
+             // In a real app, this might send an API call to toggle AI processing without recording
         }
 
         async function loadArchives() {
             const r = await fetch('/api/v1/recordings');
             const d = await r.json();
             const list = document.getElementById('recordingList');
-            document.getElementById('recStats').innerText = `${d.recordings.length} Files`;
+            document.getElementById('archiveStats').innerText = `${d.recordings.length} Files`;
             list.innerHTML = '';
             d.recordings.forEach(rec => {
                 const el = document.createElement('div');
-                el.className = "glass p-4 rounded-3xl hover:bg-white/5 cursor-pointer border border-transparent hover:border-white/10 transition-all flex flex-col gap-4";
+                el.className = "glass p-4 rounded-3xl hover:bg-white/5 cursor-pointer border border-transparent hover:border-white/5 transition-all flex flex-col gap-4";
                 el.innerHTML = `
                     <div class="flex justify-between items-start">
-                        <div class="flex-1 truncate">
-                             <p class="text-xs font-bold text-white truncate">${rec.video_name}</p>
-                             <p class="text-[9px] font-bold text-slate-600 uppercase mt-1">${new Date(rec.started_at).toLocaleString()}</p>
+                        <div class="truncate">
+                            <p class="text-[11px] font-bold text-white truncate">${rec.video_name}</p>
+                            <p class="text-[8px] text-slate-600 font-bold uppercase mt-1">${new Date(rec.started_at).toLocaleString()}</p>
                         </div>
-                        <div class="flex gap-2">
-                             <button onclick="inspectSession('${rec.id}'); event.stopPropagation();" class="p-2 bg-indigo-500/10 text-indigo-400 rounded-xl hover:bg-indigo-600 hover:text-white transition-all"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" stroke-width="2.5"></path></svg></button>
-                             <button onclick="deleteSession('${rec.id}'); event.stopPropagation();" class="p-2 bg-rose-500/10 text-rose-400 rounded-xl hover:bg-rose-600 hover:text-white transition-all"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" stroke-width="2.5"></path></svg></button>
-                        </div>
-                    </div>
-                    <div class="flex items-center justify-between text-[10px] font-bold uppercase tracking-widest text-indigo-500">
-                        <span>Duration: ${rec.duration_secs || 0}s</span>
-                        <span onclick="playSessionMedia('${rec.id}', '${rec.file_path}')">Sequence Play →</span>
+                        <button onclick="deleteSession('${rec.id}'); event.stopPropagation();" class="p-2.5 bg-rose-600/10 text-rose-500 rounded-xl hover:bg-rose-600 hover:text-white transition-all"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" stroke-width="2.5"></path></svg></button>
                     </div>
                 `;
-                el.onclick = () => playSessionMedia(rec.id, rec.file_path);
+                el.onclick = () => window.open(rec.file_path, '_blank');
                 list.appendChild(el);
             });
         }
 
-        async function playSessionMedia(id, path) {
-            const grid = document.getElementById('streamGrid');
-            grid.innerHTML = `
-                <div class="flex flex-col h-full gap-8">
-                     <button onclick="location.reload()" class="w-fit text-[11px] font-bold text-slate-500 hover:text-white uppercase tracking-[0.25em]">← Return to Command Grid</button>
-                     <div class="glass flex-1 rounded-[3rem] overflow-hidden border-2 border-indigo-600/30 bg-black relative shadow-2xl">
-                         <video src="${path}" controls autoplay class="w-full h-full object-contain"></video>
-                         <div class="absolute bottom-8 left-1/2 -translate-x-1/2 glass px-8 py-3 rounded-2xl border-white/10 uppercase text-[10px] font-bold tracking-[0.3em] text-white">Archives Analysis Active</div>
-                     </div>
-                     <div class="h-48 glass rounded-[2.5rem] p-8 flex flex-col border-white/5">
-                        <h4 class="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-6">Historical Detection Feed</h4>
-                        <div id="sessionLogs" class="flex gap-6 overflow-x-auto pb-4 custom-scrollbar">
-                             <p class="text-slate-600 italic text-xs">Fetching neural history...</p>
-                        </div>
-                     </div>
-                </div>
-            `;
-            const r = await fetch(`/api/v1/recordings/${id}/logs`);
-            const d = await r.json();
-            const logBox = document.getElementById('sessionLogs');
-            logBox.innerHTML = '';
-            if(!d.logs.length) logBox.innerHTML = '<p class="text-slate-700 italic text-xs">No detections found for this session.</p>';
-            d.logs.forEach(l => {
-                logBox.innerHTML += `
-                    <div class="shrink-0 w-64 glass p-4 rounded-3xl border-white/5 flex gap-4">
-                        <img src="${l.image_plate}" class="w-20 h-14 rounded-xl object-cover" onclick="zoomImg('${l.image_plate}')">
-                        <div>
-                           <p class="text-indigo-400 font-bold text-sm">${l.plate_number || 'Violation'}</p>
-                           <p class="text-[9px] text-slate-500 uppercase mt-1">${l.trigger_type}</p>
-                        </div>
-                    </div>
-                `;
-            });
-        }
-
-        async function deleteSession(id) { if(confirm("Permanently purge this recording?")) { await fetch(`/api/v1/recordings/${id}`, {method:'DELETE'}); loadArchives(); } }
-        async function disconnect(id) { if(confirm("Terminate stream connection?")) { await fetch(`/disconnect-camera/${id}`, {method:'POST'}); loadCameras(); } }
-        function zoomImg(s) { document.getElementById('modalImg').src = s; toggleModal('imgModal'); }
-        function filterMode(m) { 
-            document.querySelectorAll('.view-filter').forEach(f => { if(f.dataset.mode===m) f.classList.add('active','text-white'); else f.classList.remove('active','text-white'); });
-            const blocks = document.querySelectorAll('.view-block');
-            blocks.forEach(b => {
-                const id = b.id.replace('view-','');
-                if(m==='all') b.style.display='block';
-                else if(m==='active') b.style.display = activeRecs[id] ? 'block':'none';
+        async function deleteSession(id) { if(confirm("Purge recording?")) { await fetch(`/api/v1/recordings/${id}`, {method:'DELETE'}); loadArchives(); } }
+        function zoom(s) { document.getElementById('modalImg').src=s; toggleModal('imgModal'); }
+        function filterMode(m) {
+            document.querySelectorAll('.view-filter').forEach(f=>f.classList.remove('active','text-white','text-emerald-400'));
+            const cards = document.querySelectorAll('.stream-card');
+            cards.forEach(c => {
+                const id = c.id.replace('card-','');
+                if(m==='all') c.style.display='block';
+                else if(m==='active') c.style.display = (cams[id].status==='active'||cams[id].status==='recording') ? 'block':'none';
             })
         }
-        function updateTimer(id) { if(!activeRecs[id])return; const e = Math.floor((Date.now()-activeRecs[id].ts)/1000); const m = Math.floor(e/60).toString().padStart(2,'0'); const s = (e%60).toString().padStart(2,'0'); document.getElementById(`clock-${id}`).innerText=`${m}:${s}`; setTimeout(()=>updateTimer(id), 1000); }
+        function updateClock(id) { if(!activeRecs[id])return; const e = Math.floor((Date.now()-activeRecs[id].s)/1000); const m = Math.floor(e/60).toString().padStart(2,'0'); const s = (e%60).toString().padStart(2,'0'); document.getElementById(`clock-${id}`).innerText=`${m}:${s}`; setTimeout(()=>updateClock(id),1000); }
 
         window.onload = () => { loadCameras(); loadArchives(); };
     </script>
