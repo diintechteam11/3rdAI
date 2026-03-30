@@ -57,14 +57,11 @@ def save_keys(keys):
     with open(API_KEYS_FILE, "w") as f:
         json.dump(keys, f, indent=4)
 
-# Initialize file if not valid
 if not API_KEYS_FILE.exists() or API_KEYS_FILE.stat().st_size == 0:
     save_keys({})
 
-# Mount static files
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-# Templates
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
 # In-memory tracking
@@ -87,7 +84,6 @@ async def verify_auth(authorization: str = Header(None), x_api_key: str = Header
         
     keys = load_keys()
     if token not in keys and not token.startswith("sk-"): # Allow sk- prefix for simulated keys
-        # return True # Force skip in dev
         pass
     return True
 
@@ -382,18 +378,53 @@ async def stop_analysis(camera_id: str, analysis_session_id: str = Form(...), st
 
 app.include_router(api_v1)
 
-# --- UI ROUTES ---
+# --- UI & LEGACY ROUTES ---
+
 @app.get("/", response_class=HTMLResponse)
-async def home(request: Request): return templates.TemplateResponse(request, "index.html")
+async def home(request: Request): return templates.TemplateResponse(request, "index.html", {"request": request})
 
 @app.get("/docs", response_class=HTMLResponse)
-async def docs(request: Request): return templates.TemplateResponse(request, "docs.html")
+async def docs(request: Request): return templates.TemplateResponse(request, "docs.html", {"request": request})
 
 @app.get("/api-access", response_class=HTMLResponse)
-async def api_access(request: Request): return templates.TemplateResponse(request, "api.html")
+async def api_access(request: Request): return templates.TemplateResponse(request, "api.html", {"request": request})
 
 @app.get("/playground", response_class=HTMLResponse)
-async def playground(request: Request): return templates.TemplateResponse(request, "playground.html")
+async def playground(request: Request): return templates.TemplateResponse(request, "playground.html", {"request": request})
+
+@app.post("/connect-camera")
+async def connect_camera(name: str = Form(...), link: str = Form(...), triggers: str = Form(...), db: Session = Depends(get_db)):
+    camera_id = str(uuid.uuid4())
+    new_camera = Camera(id=camera_id, name=name, ip=link, location="Dashboard", status="active")
+    db.add(new_camera)
+    db.commit()
+    selected_triggers = [t.strip() for t in triggers.split(",") if t.strip()]
+    processor = LiveCameraProcessor(camera_id, link, selected_triggers)
+    active_camera_processors[camera_id] = processor
+    return {"message": "Connecting", "camera_id": camera_id}
+
+@app.get("/camera-status/{camera_id}")
+async def get_legacy_status(camera_id: str):
+    if camera_id not in active_camera_processors: return {"status": "not_found"}
+    p = active_camera_processors[camera_id]
+    if p.latest_jpeg: return {"status": "connected"}
+    return {"status": "initializing"}
+
+@app.get("/camera-logs/{camera_id}")
+async def get_legacy_logs(camera_id: str):
+    if camera_id not in active_camera_processors: return {"logs": []}
+    return {"logs": active_camera_processors[camera_id].logs}
+
+@app.post("/disconnect-camera/{camera_id}")
+async def disconnect_camera(camera_id: str, db: Session = Depends(get_db)):
+    if camera_id in active_camera_processors:
+        active_camera_processors[camera_id].is_running = False
+        del active_camera_processors[camera_id]
+    camera = db.query(Camera).filter(Camera.id == camera_id).first()
+    if camera:
+        camera.status = "inactive"
+        db.commit()
+    return {"message": "Disconnected"}
 
 @app.get("/camera-stream/{camera_id}")
 async def stream(camera_id: str):
@@ -404,6 +435,42 @@ async def stream(camera_id: str):
             if p.latest_jpeg: yield (b'--frame\r\n' b'Content-Type: image/jpeg\r\n\r\n' + p.latest_jpeg + b'\r\n')
             time.sleep(0.04)
     return StreamingResponse(gen(), media_type="multipart/x-mixed-replace; boundary=frame")
+
+@app.post("/upload-video")
+async def legacy_upload(
+    background_tasks: BackgroundTasks,
+    video_file: UploadFile = File(...),
+    triggers: str = Form(""),
+    auth=Depends(verify_auth)
+):
+    task_id = str(uuid.uuid4())
+    input_filename = f"{task_id}_{video_file.filename}"
+    input_path = str(UPLOAD_DIR / input_filename)
+    with open(input_path, "wb") as f:
+        f.write(await video_file.read())
+    output_filename = f"processed_{task_id}.mp4"
+    output_path = str(OUTPUT_DIR / output_filename)
+    selected_triggers = [t.strip() for t in triggers.split(",") if t.strip()]
+    processing_tasks[task_id] = {"status": "queued", "id": task_id}
+    background_tasks.add_task(background_video_processing, task_id, input_path, output_path, selected_triggers)
+    return {"message": "Processing started", "task_id": task_id}
+
+def background_video_processing(task_id: str, input_path: str, output_path: str, selected_triggers: list):
+    try:
+        processing_tasks[task_id]["status"] = "processing"
+        logs = process_video(task_id, input_path, output_path, selected_triggers)
+        processing_tasks[task_id].update({
+            "status": "completed",
+            "logs": logs,
+            "video_url": f"/static/outputs/{os.path.basename(output_path)}"
+        })
+    except Exception as e:
+        processing_tasks[task_id]["status"] = "failed"
+        processing_tasks[task_id]["error"] = str(e)
+
+@app.get("/video-result/{task_id}")
+async def get_video_result(task_id: str):
+    return processing_tasks.get(task_id, {"error": "Task not found"})
 
 @app.post("/generate-api-key")
 async def gen_key():
