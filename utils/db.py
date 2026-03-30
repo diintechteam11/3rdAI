@@ -1,59 +1,123 @@
+from sqlalchemy import create_engine, Column, String, Integer, Float, Boolean, DateTime, ForeignKey, Text, Enum
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker, relationship
+from sqlalchemy.sql import func
 import os
 import uuid
-from motor.motor_asyncio import AsyncIOMotorClient
-from datetime import datetime
 from dotenv import load_dotenv
 
 load_dotenv()
 
-# MongoDB Configuration
-# Fallback to local if URI is invalid or missing
-MONGO_URI = os.getenv("MONGO_URI") or "mongodb://localhost:27017"
+# DB Configuration
+DB_HOST = os.getenv("DB_HOST", "dpg-d72j4spr0fns73ebi470-a.ohio-postgres.render.com")
+DB_NAME = os.getenv("DB_NAME", "db_3rdai")
+DB_USER = os.getenv("DB_USER", "db_3rdai_user")
+DB_PASS = os.getenv("DB_PASS", "WHbW4G3mT0qzgGmPODeLCWwnVwlcR6xO")
 
-DB_NAME = "3rdai_analytics"
+SQLALCHEMY_DATABASE_URL = f"postgresql://{DB_USER}:{DB_PASS}@{DB_HOST}/{DB_NAME}"
 
-client = None
-db = None
+engine = create_engine(SQLALCHEMY_DATABASE_URL)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-def get_iso_now():
-    return datetime.utcnow().isoformat() + "Z"
+Base = declarative_base()
 
-async def init_mongo():
-    global client, db
+class Camera(Base):
+    __tablename__ = "cameras"
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    name = Column(String, nullable=False)
+    ip = Column(String, nullable=False) # RTSP or HTTP URL
+    location = Column(String)
+    brand = Column(String)
+    status = Column(String, default="active") # active, inactive, recording
+    is_recording = Column(Boolean, default=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now(), server_default=func.now())
+
+    recordings = relationship("RecordingSession", back_populates="camera")
+    schedule = relationship("Schedule", back_populates="camera", uselist=False)
+    analysis_sessions = relationship("AnalysisSession", back_populates="camera")
+
+class RecordingSession(Base):
+    __tablename__ = "recording_sessions"
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    camera_id = Column(String, ForeignKey("cameras.id"))
+    video_name = Column(String) # Filename
+    file_path = Column(String) # Storage Path/URL
+    duration_secs = Column(Integer, default=0)
+    source = Column(String, default="manual") # manual, auto, analysis
+    started_at = Column(DateTime(timezone=True), server_default=func.now())
+    stopped_at = Column(DateTime(timezone=True))
+    saved_at = Column(DateTime(timezone=True))
+    initiated_by = Column(String)
+    stopped_by = Column(String)
+    description = Column(Text)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now(), server_default=func.now())
+
+    camera = relationship("Camera", back_populates="recordings")
+    analysis_session = relationship("AnalysisSession", back_populates="recording_session", uselist=False)
+
+class Schedule(Base):
+    __tablename__ = "schedules"
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    camera_id = Column(String, ForeignKey("cameras.id"), unique=True)
+    mode = Column(String, default="manual") # 24_7, custom, manual
+    is_enabled = Column(Boolean, default=True)
+    custom_start_time = Column(String) # HH:MM
+    custom_end_time = Column(String) # HH:MM
+    timezone = Column(String, default="UTC")
+    days_of_week = Column(Text) # JSON string or comma-separated
+    created_by = Column(String)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now(), server_default=func.now())
+
+    camera = relationship("Camera", back_populates="schedule")
+
+class AnalysisSession(Base):
+    __tablename__ = "analysis_sessions"
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    camera_id = Column(String, ForeignKey("cameras.id"))
+    recording_session_id = Column(String, ForeignKey("recording_sessions.id"))
+    analysis_type = Column(String)
+    analysis_result = Column(Text)
+    capture_started_at = Column(DateTime(timezone=True), server_default=func.now())
+    capture_ended_at = Column(DateTime(timezone=True))
+    triggered_by = Column(String)
+    stopped_by = Column(String)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now(), server_default=func.now())
+
+    camera = relationship("Camera", back_populates="analysis_sessions")
+    recording_session = relationship("RecordingSession", back_populates="analysis_session")
+
+# Detections table for AI Feed Output
+class Detection(Base):
+    __tablename__ = "detections"
+
+    id = Column(Integer, primary_key=True, index=True)
+    camera_id = Column(String)
+    task_id = Column(String)
+    filename = Column(String)
+    timestamp = Column(Float)
+    trigger = Column(String)
+    event = Column(Text)
+    image_plate_url = Column(String)
+    image_object_url = Column(String)
+    plate_number = Column(String)
+    vehicle_color = Column(String)
+    saved_to_r2 = Column(Boolean, default=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+def init_db():
+    Base.metadata.create_all(bind=engine)
+
+def get_db():
+    db = SessionLocal()
     try:
-        # Check if URI is actually provided and not the placeholder
-        uri = MONGO_URI
-        if "cluster0.abcde.mongodb.net" in uri:
-            print("Warning: Placeholder MongoDB URI detected. Falling back to localhost.")
-            uri = "mongodb://localhost:27017"
-            
-        client = AsyncIOMotorClient(uri, serverSelectionTimeoutMS=5000)
-        db = client[DB_NAME]
-        
-        # Test connection
-        await client.admin.command('ping')
-        
-        # Setup indexes
-        await db["detections"].create_index("camera_id")
-        await db["detections"].create_index("timestamp")
-        await db["detections"].create_index("plate_number")
-        await db["recordings"].create_index("camera_id")
-        await db["cameras"].create_index("id", unique=True)
-        print("Debug: MongoDB Successfully Initialized & Connected!")
-    except Exception as e:
-        print(f"Debug: MongoDB CONNECTION FAILED: {e}")
-        # We don't crash, but db operations will fail later. 
-        # This allows the server to at least start so logs can be seen.
-        if db is None:
-            # Last fallback to local even if ping failed
-            client = AsyncIOMotorClient("mongodb://localhost:27017")
-            db = client[DB_NAME]
-
-async def get_db():
-    return db
-
-CAMERAS = "cameras"
-DETECTIONS = "detections"
-RECORDINGS = "recordings"
-SCHEDULES = "schedules"
-ANALYSIS_SESSIONS = "analysis_sessions"
+        yield db
+    finally:
+        db.close()
