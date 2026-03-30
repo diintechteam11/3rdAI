@@ -129,7 +129,7 @@ app.include_router(api_v1)
 
 # --- WEB UI & AD-HOC ---
 @app.get("/", response_class=HTMLResponse)
-async def home(request: Request): return templates.TemplateResponse("index.html", {"request": request})
+async def home(request: Request): return templates.TemplateResponse(request, "index.html", {"request": request})
 
 @app.post("/connect-camera")
 async def connect(name: str = Form(...), link: str = Form(...), db: Session = Depends(get_db)):

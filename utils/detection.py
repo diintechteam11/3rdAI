@@ -71,15 +71,16 @@ def upload(img, trigger, session_id):
         local_url = f"/static/crops/{safe_sess}/{fname}"
         
         # Cloud attempt
-        if r2: # if R2 succeeds, we can return the cloud URL
+        if r2 and R2_PUBLIC_URL: 
             try:
                 key = f"rec_{safe_sess}/{trigger}/{fname}"
                 _, buf = cv2.imencode('.jpg', img, [int(cv2.IMWRITE_JPEG_QUALITY), 95])
                 r2.put_object(Bucket=R2_BUCKET, Key=key, Body=buf.tobytes(), ContentType='image/jpeg')
-                return f"{R2_PUBLIC_URL.rstrip('/')}/{key}" if R2_PUBLIC_URL else key
-            except: pass
+                return f"{R2_PUBLIC_URL.rstrip('/')}/{key}"
+            except Exception as e:
+                print(f"DEBUG: R2 Upload Failed: {e}")
             
-        return local_url
+        return local_url # Return /static/crops/...
     except: return None
 
 def get_model(name):
