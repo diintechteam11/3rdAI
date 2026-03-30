@@ -7,40 +7,53 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # MongoDB Configuration
-MONGO_URI = os.getenv("MONGO_URI", "mongodb+srv://3rdai_user:WHbW4G3mT0qzgGmPODeLCWwnVwlcR6xO@cluster0.abcde.mongodb.net/db_3rdai?retryWrites=true&w=majority")
-# Note: In a real environment, the user should provide their own link. I'll use a placeholder or local if needed.
-# Since I don't have their URI, I'll assume they want me to configure it logically.
+# Fallback to local if URI is invalid or missing
+MONGO_URI = os.getenv("MONGO_URI") or "mongodb://localhost:27017"
 
 DB_NAME = "3rdai_analytics"
 
-client = AsyncIOMotorClient(MONGO_URI)
-db = client[DB_NAME]
+client = None
+db = None
 
-# Collections names
+def get_iso_now():
+    return datetime.utcnow().isoformat() + "Z"
+
+async def init_mongo():
+    global client, db
+    try:
+        # Check if URI is actually provided and not the placeholder
+        uri = MONGO_URI
+        if "cluster0.abcde.mongodb.net" in uri:
+            print("Warning: Placeholder MongoDB URI detected. Falling back to localhost.")
+            uri = "mongodb://localhost:27017"
+            
+        client = AsyncIOMotorClient(uri, serverSelectionTimeoutMS=5000)
+        db = client[DB_NAME]
+        
+        # Test connection
+        await client.admin.command('ping')
+        
+        # Setup indexes
+        await db["detections"].create_index("camera_id")
+        await db["detections"].create_index("timestamp")
+        await db["detections"].create_index("plate_number")
+        await db["recordings"].create_index("camera_id")
+        await db["cameras"].create_index("id", unique=True)
+        print("Debug: MongoDB Successfully Initialized & Connected!")
+    except Exception as e:
+        print(f"Debug: MongoDB CONNECTION FAILED: {e}")
+        # We don't crash, but db operations will fail later. 
+        # This allows the server to at least start so logs can be seen.
+        if db is None:
+            # Last fallback to local even if ping failed
+            client = AsyncIOMotorClient("mongodb://localhost:27017")
+            db = client[DB_NAME]
+
+async def get_db():
+    return db
+
 CAMERAS = "cameras"
 DETECTIONS = "detections"
 RECORDINGS = "recordings"
 SCHEDULES = "schedules"
 ANALYSIS_SESSIONS = "analysis_sessions"
-
-async def get_db():
-    return db
-
-# Helper for creating standard IDs and timestamps
-def get_iso_now():
-    return datetime.utcnow().isoformat() + "Z"
-
-async def init_mongo():
-    # Setup indexes for performance
-    try:
-        await db[DETECTIONS].create_index("camera_id")
-        await db[DETECTIONS].create_index("timestamp")
-        await db[DETECTIONS].create_index("plate_number")
-        await db[RECORDINGS].create_index("camera_id")
-        await db[CAMERAS].create_index("id", unique=True)
-        print("Debug: MongoDB Indexes created!")
-    except Exception as e:
-        print(f"Debug: MongoDB Init Error: {e}")
-
-# Note: The user mentioned MongoDB. If they are running locally, I'll use localhost.
-# In main.py, I'll switch from SQLAlchemy sessions to async DB calls.

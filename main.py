@@ -11,7 +11,7 @@ from typing import Optional, List, Union
 from utils.detection import process_video, LiveCameraProcessor, MODEL_MAP
 from utils.db import db, init_mongo, CAMERAS, DETECTIONS, RECORDINGS, SCHEDULES, get_iso_now
 
-app = FastAPI(title="3rdAI Enterprise v2.0", version="2.0")
+app = FastAPI(title="3rdAI Universal Monitoring Hub v2.1", version="2.1")
 
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 
@@ -40,6 +40,7 @@ api = APIRouter(prefix="/api/v1")
 
 @api.get("/cameras")
 async def list_cams(search:str=None, status:str=None):
+    if db is None: return {"cameras":[]}
     q = {}
     if search: q["$or"] = [{"name":{"$regex":search, "$options":"i"}}, {"location":{"$regex":search, "$options":"i"}}]
     if status: q["status"] = status
@@ -50,6 +51,7 @@ async def list_cams(search:str=None, status:str=None):
 
 @api.get("/cameras/{id}")
 async def get_cam(id:str):
+    if db is None: return get_error("DB_ERROR", "DB not ready", 500)
     c = await db[CAMERAS].find_one({"id":id})
     if not c: return get_error("NOT_FOUND", "No camera", 404)
     c.pop("_id", None)
@@ -64,7 +66,7 @@ async def start_rec(id:str, name:str=Form(...)):
     
     proc = active_camera_processors[id]
     rid = proc.start_rec(name)
-    await db[CAMERAS].update_one({"id":id}, {"$set": {"is_recording":True, "status":"recording"}})
+    if db is not None: await db[CAMERAS].update_one({"id":id}, {"$set": {"is_recording":True, "status":"recording"}})
     return {"recording_id": rid, "status": "started", "name": name}
 
 @api.post("/cameras/{id}/recording/stop")
@@ -73,19 +75,19 @@ async def stop_rec(id:str):
     proc = active_camera_processors[id]
     rid = proc.stop_rec()
     
-    # Save recording to DB
-    rec_doc = {
-        "id": rid, "camera_id": id, "video_name": proc.rec_name,
-        "video_url": f"/static/recordings/{rid}_{int(time.time())}.mp4", # Fixed reference
-        "logs": list(proc.logs), "created_at": get_iso_now()
-    }
-    await db[RECORDINGS].insert_one(rec_doc)
-    await db[CAMERAS].update_one({"id":id}, {"$set": {"is_recording":False, "status":"active"}})
-    proc.logs = [] # Reset for next recording cycle
+    rec_path = f"/static/recordings/{rid}.mp4" 
+    if db is not None:
+        await db[RECORDINGS].insert_one({
+            "id": rid, "camera_id": id, "video_name": proc.rec_name, "video_url": rec_path,
+            "logs": list(proc.logs), "created_at": get_iso_now()
+        })
+        await db[CAMERAS].update_one({"id":id}, {"$set": {"is_recording":False, "status":"active"}})
+    proc.logs = [] 
     return {"recording_id": rid, "status": "stopped"}
 
 @api.get("/recordings")
 async def list_recs(camera_id:str=None):
+    if db is None: return {"recordings":[]}
     q = {"camera_id": camera_id} if camera_id else {}
     cursor = db[RECORDINGS].find(q).sort("created_at", -1)
     res = await cursor.to_list(100)
@@ -94,14 +96,17 @@ async def list_recs(camera_id:str=None):
 
 app.include_router(api)
 
+# --- UI & LEGACY ---
+# Fix: Using modern TemplateResponse signature (request, name) or explicit keywords.
 @app.get("/", response_class=HTMLResponse)
-async def home(request:Request): return templates.TemplateResponse("index.html", {"request":request})
+async def home(request:Request): 
+    return templates.TemplateResponse(request=request, name="index.html")
 
 @app.post("/connect-camera")
 async def connect(name:str=Form(...), link:str=Form(...), triggers:str=Form(...)):
     id = str(uuid.uuid4())
-    doc = {"id":id, "name":name, "ip":link, "location":"Deployment Zone", "status":"active", "created_at":get_iso_now(), "is_recording": False}
-    await db[CAMERAS].insert_one(doc)
+    doc = {"id":id, "name":name, "ip":link, "location":"Field Deployment", "status":"active", "created_at":get_iso_now(), "is_recording": False}
+    if db is not None: await db[CAMERAS].insert_one(doc)
     active_camera_processors[id] = LiveCameraProcessor(id, link, [t.strip() for t in triggers.split(",") if t.strip()])
     return {"camera_id": id}
 
@@ -123,7 +128,7 @@ async def ws_cam(websocket:WebSocket, id:str):
     try:
         while True:
             if p.latest_jpeg: await websocket.send_bytes(p.latest_jpeg)
-            await asyncio.sleep(0.04) # 25FPS
+            await asyncio.sleep(0.04)
     except: pass
 
 @app.post("/upload-video")
@@ -140,21 +145,21 @@ async def run_proc(tid, in_p, out_p, ts):
     processing_tasks[tid]["status"] = "processing"
     try:
         loop = asyncio.get_event_loop()
-        # process_video is CPU intensive, delegating to executor
         logs = await loop.run_in_executor(None, process_video, tid, in_p, out_p, ts)
         result = {"id": tid, "status": "completed", "logs": logs, "video_url": f"/static/outputs/{os.path.basename(out_p)}", "created_at": get_iso_now()}
         processing_tasks[tid].update(result)
-        await db["uploads"].insert_one(result)
+        if db is not None: await db["uploads"].insert_one(result)
     except Exception as e:
         err = {"id": tid, "status": "failed", "error": str(e), "created_at": get_iso_now()}
         processing_tasks[tid].update(err)
-        await db["uploads"].insert_one(err)
+        if db is not None: await db["uploads"].insert_one(err)
 
 @app.get("/video-result/{id}")
 async def result(id:str):
     if id in processing_tasks: return processing_tasks[id]
-    r = await db["uploads"].find_one({"id": id})
-    if r: r.pop("_id", None); return r
+    if db is not None: 
+        r = await db["uploads"].find_one({"id": id})
+        if r: r.pop("_id", None); return r
     return {"status":"not_found"}
 
 if __name__ == "__main__":
