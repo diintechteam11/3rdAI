@@ -23,7 +23,9 @@ R2_PUBLIC_URL = os.getenv("R2_PUBLIC_URL")
 
 r2 = None
 if all([R2_ENDPOINT, R2_ACCESS_KEY, R2_SECRET_KEY, R2_BUCKET]):
-    r2 = boto3.client('s3', endpoint_url=R2_ENDPOINT, aws_access_key_id=R2_ACCESS_KEY, aws_secret_access_key=R2_SECRET_KEY)
+    try:
+        r2 = boto3.client('s3', endpoint_url=R2_ENDPOINT, aws_access_key_id=R2_ACCESS_KEY, aws_secret_access_key=R2_SECRET_KEY)
+    except: r2 = None
 
 try:
     import easyocr
@@ -40,7 +42,6 @@ MODEL_MAP = {
 
 def ocr(crop):
     if crop is None or crop.size == 0: return ""
-    # Cloud OCR
     try:
         _, buf = cv2.imencode('.jpg', crop)
         res = requests.post('https://api.platerecognizer.com/v1/plate-reader/',
@@ -52,7 +53,6 @@ def ocr(crop):
             if d.get('results'):
                 return re.sub(r'[^A-Z0-9]', '', d['results'][0].get('plate', '').upper())
     except: pass
-    # Local OCR
     if reader:
         try:
             res = reader.readtext(crop)
@@ -61,12 +61,24 @@ def ocr(crop):
     return ""
 
 def upload(img, trigger, session_id):
-    if not r2 or img is None: return None
+    # LOCAL SAVE ALWAYS as fallback
     try:
-        key = f"rec_{session_id}/{trigger}/{int(time.time()*1000)}.jpg"
-        _, buf = cv2.imencode('.jpg', img, [int(cv2.IMWRITE_JPEG_QUALITY), 95])
-        r2.put_object(Bucket=R2_BUCKET, Key=key, Body=buf.tobytes(), ContentType='image/jpeg')
-        return f"{R2_PUBLIC_URL.rstrip('/')}/{key}" if R2_PUBLIC_URL else key
+        ts = int(time.time()*1000)
+        local_dir = os.path.join("static", "crops", str(session_id))
+        os.makedirs(local_dir, exist_ok=True)
+        fname = f"{trigger}_{ts}.jpg"
+        fpath = os.path.join(local_dir, fname)
+        cv2.imwrite(fpath, img, [int(cv2.IMWRITE_JPEG_QUALITY), 90])
+        local_url = f"/static/crops/{session_id}/{fname}"
+        
+        # Cloud attempt
+        if r2:
+            key = f"rec_{session_id}/{trigger}/{fname}"
+            _, buf = cv2.imencode('.jpg', img, [int(cv2.IMWRITE_JPEG_QUALITY), 95])
+            r2.put_object(Bucket=R2_BUCKET, Key=key, Body=buf.tobytes(), ContentType='image/jpeg')
+            return f"{R2_PUBLIC_URL.rstrip('/')}/{key}" if R2_PUBLIC_URL else key
+            
+        return local_url
     except: return None
 
 def get_model(name):
@@ -82,6 +94,7 @@ class LiveCameraProcessor:
         self.logs, self.seen_plates = [], set()
         self.is_recording, self.writer = False, None
         self.recording_session_id = None
+        self.current_recording_path = None
         
         self.trigger_list = selected_triggers
         self.models = {t: get_model(t) for t in self.trigger_list if t in MODEL_MAP}
@@ -103,7 +116,6 @@ class LiveCameraProcessor:
             if not ret: time.sleep(1); cap = cv2.VideoCapture(self.camera_link); continue
             
             self.latest_frame = frame.copy()
-            # Object Detection
             vehicle_res = self.vehicle_model.track(frame, persist=True, verbose=False, classes=[2,3,5,7])[0]
             
             for t_name, model in self.models.items():
@@ -120,13 +132,10 @@ class LiveCameraProcessor:
                         plate_text = ocr(crop_p)
                         if not plate_text or plate_text in self.seen_plates: continue
                         self.seen_plates.add(plate_text)
-                    
-                    # Deduplicate other events by ID (rudimentary)
                     elif f"{t_name}_{obj_id}" in self.seen_plates: continue
                     else: self.seen_plates.add(f"{t_name}_{obj_id}")
 
-                    # Associate vehicle crop
-                    v_crop = crop_p if t_name == "Number Plate Detection" else self.latest_frame[y1:y2, x1:x2]
+                    v_crop = self.latest_frame[y1:y2, x1:x2]
                     if vehicle_res.boxes and vehicle_res.boxes.id is not None:
                         for v_box in vehicle_res.boxes.xyxy.cpu().numpy().astype(int):
                             vx1, vy1, vx2, vy2 = v_box
@@ -142,7 +151,7 @@ class LiveCameraProcessor:
                         "trigger": t_name, "event": f"Detected {label}",
                         "plate_number": plate_text,
                         "image_plate": url_p, "image_object": url_v,
-                        "saved_to_r2": True if url_p else False
+                        "saved_to_r2": "http" in str(url_p)
                     }
                     self.logs.append(log)
                     self._persist(log)
@@ -172,9 +181,10 @@ class LiveCameraProcessor:
         if self.is_recording: return False, "Already"
         self.recording_session_id = str(uuid.uuid4())
         fname = f"{video_name}_{int(time.time())}.mp4"
-        path = os.path.join("static", "recordings", fname)
+        self.current_recording_path = os.path.join("static", "recordings", fname)
         h, w = self.latest_frame.shape[:2] if self.latest_frame is not None else (720, 1280)
-        self.writer = cv2.VideoWriter(path, cv2.VideoWriter_fourcc(*'mp4v'), 20.0, (w, h))
+        # AVC1 is better for web but might need a re-encode to be 100% safe
+        self.writer = cv2.VideoWriter(self.current_recording_path, cv2.VideoWriter_fourcc(*'mp4v'), 20.0, (w, h))
         db = SessionLocal()
         try:
             s = RecordingSession(id=self.recording_session_id, camera_id=self.camera_id, video_name=fname, file_path=f"/static/recordings/{fname}", source=source, started_at=func.now())
@@ -187,6 +197,13 @@ class LiveCameraProcessor:
     def stop_recording(self, stopped_by):
         self.is_recording = False
         if self.writer: self.writer.release(); self.writer = None
+        # RE-ENCODE for WEB PLAYBACK
+        if self.current_recording_path:
+            out_path = self.current_recording_path + ".mp4"
+            try:
+                subprocess.run(['ffmpeg', '-y', '-i', self.current_recording_path, '-vcodec', 'libx264', '-preset', 'ultrafast', out_path], check=True)
+                os.replace(out_path, self.current_recording_path)
+            except: pass
         return True, self.recording_session_id
 
 def process_video(tid, inp, out, trigs):
@@ -213,7 +230,6 @@ def process_video(tid, inp, out, trigs):
                     seen.add(plate)
                 elif f"{t_name}_{obj_id}" in seen: continue
                 else: seen.add(f"{t_name}_{obj_id}")
-                
                 logs.append({"timestamp": round(f_count/fps, 2), "trigger": t_name, "plate_number": plate, "event": f"Detected {model.names[cls_id]}"})
             cv2.rectangle(frame, (x1,y1), (x2,y2), (0,255,0), 2)
         writer.write(frame)
