@@ -3,470 +3,295 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3rdAI | Advanced Video Analytics & Recording</title>
+    <title>3rdAI | Advanced Analytics Dashboard</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Fira+Code:wght@400&display=swap" rel="stylesheet">
     <style>
-        :root {
-            --bg-dark: #020617;
-            --glass: rgba(15, 23, 42, 0.6);
-            --accent: #6366f1;
-            --emerald: #10b981;
-            --rose: #f43f5e;
-            --amber-glow: rgba(245, 158, 11, 0.2);
-        }
+        :root { --bg-dark: #020617; --glass: rgba(15, 23, 42, 0.6); --accent: #6366f1; --emerald: #10b981; --rose: #f43f5e; }
         body { font-family: 'Outfit', sans-serif; background-color: var(--bg-dark); color: #f1f5f9; overflow-x: hidden; }
         .mono { font-family: 'Fira Code', monospace; }
         .glass { background: var(--glass); backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.05); }
-        .accent-glow { box-shadow: 0 0 20px rgba(99, 102, 241, 0.15); }
+        .recording-glow { animation: pulse-red 2s infinite; }
+        @keyframes pulse-red { 0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); } 70% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); } 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); } }
         .custom-scrollbar::-webkit-scrollbar { width: 5px; height: 5px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); border-radius: 10px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.2); }
-        
-        .side-panel { transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
-        .btn-action { transition: all 0.2s transform active:scale-95; }
-        
-        @keyframes pulse-emerald {
-            0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); }
-            70% { box-shadow: 0 0 0 10px rgba(16, 185, 129, 0); }
-            100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
-        }
-        .recording-pulse { animation: pulse-emerald 2s infinite; }
-        
-        .trigger-tag {
-            padding: 2px 8px;
-            border-radius: 4px;
-            font-size: 10px;
-            text-transform: uppercase;
-            font-weight: 700;
-            background: rgba(99, 102, 241, 0.1);
-            color: #818cf8;
-            border: 1px solid rgba(99, 102, 241, 0.2);
-        }
+        .trigger-badge { font-size: 9px; font-weight: 800; text-transform: uppercase; padding: 2px 8px; border-radius: 4px; border: 1px solid rgba(99, 102, 241, 0.3); background: rgba(99, 102, 241, 0.1); color: #818cf8; }
     </style>
 </head>
 <body class="min-h-screen flex flex-col">
 
-    <!-- Topbar -->
-    <nav class="h-16 glass sticky top-0 z-[100] flex items-center justify-between px-6 border-b border-white/5">
+    <!-- Top Navigation -->
+    <nav class="h-16 glass sticky top-0 z-[100] flex items-center justify-between px-8 border-b border-white/5">
         <div class="flex items-center gap-4">
-            <div class="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-600/20">
+            <div class="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center shadow-indigo-600/30 shadow-lg">
                 <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" stroke-width="2"></path></svg>
             </div>
-            <div>
-                <h1 class="text-xl font-bold tracking-tight text-white">3rdAI <span class="text-indigo-400 font-medium">Analytics</span></h1>
-                <p class="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Pro Surveillance v1.2</p>
-            </div>
+            <h1 class="text-xl font-bold tracking-tighter uppercase">3rdAI <span class="text-indigo-400">Pro</span></h1>
         </div>
-
-        <div class="flex items-center gap-6">
-            <div class="flex gap-4 items-center">
-                <span id="connectionCount" class="text-xs text-slate-400 border border-white/10 px-3 py-1 rounded-full">0 Cameras Online</span>
-                <div class="h-4 w-px bg-white/10"></div>
-                <button onclick="toggleConnectionModal()" class="text-xs font-bold text-indigo-400 hover:text-white transition-colors uppercase tracking-widest">Add Camera</button>
-                <a href="/api-access" class="text-xs font-bold text-slate-400 hover:text-white transition-colors uppercase tracking-widest">API Proof</a>
-            </div>
+        <div class="flex items-center gap-8">
+            <span id="sysStatus" class="flex items-center gap-2 text-[10px] uppercase font-bold text-slate-500 tracking-widest"><span class="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span> Service Active</span>
+            <button onclick="toggleCamModal()" class="px-6 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-full text-xs font-bold tracking-widest transition-all shadow-lg shadow-indigo-600/20">Add Camera</button>
         </div>
     </nav>
 
     <div class="flex-1 flex overflow-hidden">
         
-        <!-- Sidebar: Recordings List (LEFT) -->
-        <aside class="w-80 glass flex flex-col border-r border-white/5 side-panel">
+        <!-- Left: Recording History Sidebar -->
+        <aside class="w-80 glass flex flex-col border-r border-white/5">
             <div class="p-6 border-b border-white/5 bg-white/5">
-                <h2 class="text-sm font-bold text-white uppercase tracking-widest flex items-center gap-2">
-                    <svg class="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" stroke-width="2"></path></svg>
-                    Recording History
-                </h2>
-                <div class="mt-4 flex gap-2">
-                    <input type="text" id="recordingsSearch" placeholder="Search files..." class="w-full bg-slate-900/50 border border-white/5 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-indigo-500">
+                <h2 class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Saved Recordings</h2>
+                <div class="relative">
+                    <input type="text" id="recSearch" placeholder="Filter by name..." class="w-full bg-slate-900 border border-white/5 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-indigo-500">
                 </div>
             </div>
-            <div id="recordingsList" class="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
-                <!-- Recordings will be dynamically loaded here -->
-                <div class="text-slate-600 text-center py-20 italic text-xs">No recordings found</div>
+            <div id="recList" class="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
+                <!-- Recorded videos go here -->
             </div>
         </aside>
 
-        <!-- Main Workspace (CENTER) -->
-        <main class="flex-1 flex flex-col overflow-hidden bg-[#0a0f1e]/50">
-            
-            <!-- Filter & View Controls -->
-            <div class="p-4 glass flex items-center justify-between border-b border-white/5">
-                <div class="flex gap-2">
-                    <button onclick="filterViews('all')" class="px-4 py-1.5 rounded-lg bg-indigo-600/10 text-indigo-400 border border-indigo-600/20 text-[10px] font-bold uppercase tracking-widest hover:bg-indigo-600 hover:text-white transition-all">All Cameras</button>
-                    <button onclick="filterViews('recording')" class="px-4 py-1.5 rounded-lg bg-white/5 text-slate-400 border border-white/5 text-[10px] font-bold uppercase tracking-widest hover:bg-white/10 hover:text-white transition-all">Only Recording</button>
-                    <select id="cameraSelectFilter" onchange="filterByCamera(this.value)" class="bg-slate-900 border border-white/5 rounded-lg text-[10px] px-3 font-bold uppercase tracking-widest text-slate-400 focus:outline-none">
-                        <option value="all">Select Camera...</option>
+        <!-- Center: Live Feeds -->
+        <main class="flex-1 flex flex-col overflow-hidden bg-[#0a0f1e]/40">
+            <div class="p-4 glass flex items-center justify-between border-b border-white/5 bg-indigo-600/5">
+                <div class="flex gap-4 items-center">
+                    <button onclick="filterViews('all')" class="text-[10px] font-bold uppercase tracking-widest text-slate-400 hover:text-white transition-all">All Streams</button>
+                    <button onclick="filterViews('recording')" class="text-[10px] font-bold uppercase tracking-widest text-indigo-400 hover:text-white transition-all">Only Recording</button>
+                    <div class="h-4 w-px bg-white/10"></div>
+                    <select id="camJump" onchange="filterSpecific(this.value)" class="bg-transparent text-[10px] font-bold uppercase tracking-widest text-slate-500 focus:outline-none">
+                        <option value="all">Jump to Camera</option>
                     </select>
                 </div>
-                
-                <div class="flex gap-4">
-                    <button onclick="toggleUploadModal()" class="flex items-center gap-2 text-xs font-bold text-slate-400 hover:text-emerald-400 transition-colors uppercase tracking-widest">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" stroke-width="2"></path></svg>
-                        Upload Video
-                    </button>
-                </div>
+                <button onclick="toggleUploadModal()" class="text-[10px] font-bold uppercase tracking-widest text-emerald-400 hover:text-emerald-300">Upload Process</button>
             </div>
-
-            <!-- Dashboard Stream Area -->
-            <div id="streamingWorkspace" class="flex-1 overflow-y-auto p-6 md:p-8 space-y-10 custom-scrollbar">
-                <!-- Connected camera blocks are shown here -->
-                <div id="welcomeScreen" class="h-full flex flex-col items-center justify-center opacity-30">
-                    <div class="w-32 h-32 border-2 border-dashed border-slate-700 rounded-full flex items-center justify-center mb-6">
-                        <svg class="w-16 h-16 text-slate-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" stroke-width="2"></path></svg>
-                    </div>
-                    <p class="text-xl font-bold uppercase tracking-[0.3em] text-slate-600">No Active Feeds</p>
-                    <button onclick="toggleConnectionModal()" class="mt-4 px-6 py-2 bg-slate-800 hover:bg-indigo-600 text-slate-400 hover:text-white rounded-full text-xs font-bold tracking-widest transition-all">Add Camera Stream</button>
+            
+            <div id="feedGrid" class="flex-1 overflow-y-auto p-8 space-y-12 custom-scrollbar">
+                <!-- Cameras appear here -->
+                <div id="emptyMsg" class="h-full flex flex-col items-center justify-center opacity-20">
+                    <svg class="w-16 h-16 text-slate-500 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" stroke-width="2"></path></svg>
+                    <p class="text-lg font-bold uppercase tracking-[0.4em]">Empty Grid</p>
                 </div>
             </div>
         </main>
 
-        <!-- Right Panel: Analytics Feed (RIGHT) -->
-        <aside class="w-[400px] glass flex flex-col border-l border-white/5 side-panel">
-            <div class="p-6 border-b border-white/5 bg-indigo-600/5">
-                <h2 class="text-sm font-bold text-white uppercase tracking-widest flex items-center gap-2">
-                    <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" stroke-width="2"></path></svg>
-                    Live Analytics Feed
-                </h2>
-                <p class="text-[10px] text-slate-500 mt-1 uppercase font-bold tracking-tighter">Real-time object & violation detection</p>
+        <!-- Right: Real-time Analytics Feed -->
+        <aside class="w-[450px] glass flex flex-col border-l border-white/5">
+            <div class="p-6 border-b border-white/5 bg-emerald-600/5">
+                <div class="flex justify-between items-center">
+                    <h2 class="text-xs font-bold text-white uppercase tracking-widest">Active Analysis</h2>
+                    <span id="logCount" class="text-[9px] bg-indigo-600 px-2 py-0.5 rounded text-white">0 LOGS</span>
+                </div>
             </div>
-            <div id="analyticsFeed" class="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
-                <!-- Detection cards appear here -->
-                <div class="text-slate-600 text-center py-20 italic text-xs">Waiting for detections...</div>
+            <div id="analysisLogs" class="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
+                <!-- Live triggers go here -->
+                <div class="text-center py-20 italic text-xs text-slate-700">Waiting for events...</div>
             </div>
         </aside>
     </div>
 
     <!-- Modals -->
 
-    <!-- 1. Connect Camera Modal -->
-    <div id="connectModal" class="hidden fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+    <!-- Camera Entry -->
+    <div id="camModal" class="hidden fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
         <div class="glass max-w-lg w-full rounded-3xl p-8 relative shadow-2xl">
-            <button onclick="toggleConnectionModal()" class="absolute top-6 right-6 text-slate-500 hover:text-white"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12" stroke-width="2"></path></svg></button>
-            <h2 class="text-2xl font-bold text-white mb-6">Register New Camera</h2>
-            <form id="cameraConnectForm" class="space-y-6">
-                <div>
-                    <label class="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Camera Display Name</label>
-                    <input type="text" id="newCamName" placeholder="Entrance Main Gate 01" class="w-full bg-slate-900 border border-white/10 rounded-xl px-4 py-3 text-slate-200 focus:outline-none focus:border-indigo-500" required>
-                </div>
-                <div>
-                    <label class="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">RTSP Link / Stream IP</label>
-                    <input type="text" id="newCamLink" placeholder="rtsp://admin:admin123@192.168.1.100:554/..." class="w-full bg-slate-900 border border-white/10 rounded-xl px-4 py-3 text-slate-200 focus:outline-none focus:border-indigo-500" required>
-                </div>
-                <button type="submit" id="mainConnectBtn" class="w-full py-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl font-bold shadow-lg shadow-indigo-600/20 transition-all flex items-center justify-center gap-3">
-                    <span>Initialize Camera</span>
-                    <div id="connectLoader" class="hidden animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"></div>
-                </button>
+            <button onclick="toggleCamModal()" class="absolute top-6 right-6 text-slate-500 hover:text-white"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12" stroke-width="2"></path></svg></button>
+            <h2 class="text-2xl font-bold text-white mb-6">Stream Configuration</h2>
+            <form id="camForm" class="space-y-6">
+                <input type="text" id="camName" placeholder="Camera Identification (e.g. Loading Dock)" class="w-full bg-slate-900 border border-white/10 rounded-xl px-4 py-3 text-slate-200 focus:outline-none focus:border-indigo-500" required>
+                <input type="text" id="camUrl" placeholder="RTSP://... or IP Address" class="w-full bg-slate-900 border border-white/10 rounded-xl px-4 py-3 text-slate-200 focus:outline-none focus:border-indigo-500" required>
+                <button type="submit" class="w-full py-4 bg-indigo-600 text-white rounded-xl font-bold shadow-indigo-600/20 shadow-lg">Establish Connection</button>
             </form>
         </div>
     </div>
 
-    <!-- 2. Auto Trigger Selection Modal -->
-    <div id="triggerModal" class="hidden fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+    <!-- Start Recording Config Modal -->
+    <div id="startModal" class="hidden fixed inset-0 z-[201] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
         <div class="glass max-w-md w-full rounded-3xl p-8 relative shadow-2xl">
-            <h2 class="text-2xl font-bold text-white mb-2">Auto Detection Mode</h2>
-            <p class="text-xs text-slate-500 mb-8 uppercase font-bold tracking-widest">Select triggers to enable active monitoring</p>
-            
-            <div class="space-y-3 mb-8">
-                <button onclick="toggleAllTriggers()" class="text-[10px] text-indigo-400 font-bold uppercase mb-2 block hover:underline">Select All Triggers</button>
-                <label class="flex items-center gap-4 p-4 rounded-2xl bg-white/5 border border-white/5 cursor-pointer hover:bg-white/10 transition-all">
-                    <input type="checkbox" name="autoTrigger" value="Number Plate Detection" class="w-5 h-5 rounded-lg border-white/10 bg-slate-900 text-indigo-600">
-                    <div class="flex-1">
-                        <p class="text-sm font-bold text-white">Number Plate Recognition</p>
-                        <p class="text-[10px] text-slate-500">Automatic OCR and capture to R2</p>
-                    </div>
-                </label>
-                <label class="flex items-center gap-4 p-4 rounded-2xl bg-white/5 border border-white/5 cursor-pointer hover:bg-white/10 transition-all">
-                    <input type="checkbox" name="autoTrigger" value="Helmet Detection" class="w-5 h-5 rounded-lg border-white/10 bg-slate-900 text-indigo-600">
-                    <div class="flex-1">
-                        <p class="text-sm font-bold text-white">Helmet / No Helmet</p>
-                        <p class="text-[10px] text-slate-500">Alert if rider is not wearing a helmet</p>
-                    </div>
-                </label>
-                <label class="flex items-center gap-4 p-4 rounded-2xl bg-white/5 border border-white/5 cursor-pointer hover:bg-white/10 transition-all">
-                    <input type="checkbox" name="autoTrigger" value="Triple Riding Detection" class="w-5 h-5 rounded-lg border-white/10 bg-slate-900 text-indigo-600">
-                    <div class="flex-1">
-                        <p class="text-sm font-bold text-white">Triple Riding</p>
-                        <p class="text-[10px] text-slate-500">Detect multiple passengers on motorcycle</p>
-                    </div>
-                </label>
-                <label class="flex items-center gap-4 p-4 rounded-2xl bg-white/5 border border-white/5 cursor-pointer hover:bg-white/10 transition-all">
-                    <input type="checkbox" name="autoTrigger" value="Seatbelt Detection" class="w-5 h-5 rounded-lg border-white/10 bg-slate-900 text-indigo-600">
-                    <div class="flex-1">
-                        <p class="text-sm font-bold text-white">Seatbelt Compliance</p>
-                        <p class="text-[10px] text-slate-500">Detect if driver is wearing a seatbelt</p>
-                    </div>
-                </label>
-            </div>
-            
-            <div class="flex gap-4">
-                <button onclick="closeTriggerModal()" class="flex-1 py-4 bg-slate-800 text-slate-400 font-bold rounded-2xl">Cancel</button>
-                <button id="confirmTriggerBtn" class="flex-1 py-4 bg-indigo-600 text-white font-bold rounded-2xl shadow-lg shadow-indigo-600/20">Apply Triggers</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- 3. Upload Video Modal -->
-    <div id="uploadModal" class="hidden fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
-        <div class="glass max-w-lg w-full rounded-3xl p-8 relative shadow-2xl">
-            <button onclick="toggleUploadModal()" class="absolute top-6 right-6 text-slate-500 hover:text-white"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12" stroke-width="2"></path></svg></button>
-            <h2 class="text-2xl font-bold text-white mb-6">Process Offline Video</h2>
-            <form id="fileUploadForm" class="space-y-6">
+            <h2 class="text-2xl font-bold text-white mb-2">Initialize Recording</h2>
+            <p class="text-xs text-slate-500 uppercase font-bold tracking-widest mb-8">Metadata & AI Configuration</p>
+            <form id="startForm" class="space-y-6">
                 <div>
-                    <label class="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Select Video File (.mp4)</label>
-                    <input type="file" id="videoFileInput" accept="video/mp4" class="w-full bg-slate-900 border border-white/10 rounded-xl px-4 py-3 text-slate-200">
+                    <label class="block text-[10px] font-bold text-slate-500 uppercase mb-2">Video Output Name</label>
+                    <input type="text" id="recName" placeholder="e.g. Morning_Session_01" class="w-full bg-slate-900 border border-white/10 rounded-xl px-4 py-3 text-slate-200 focus:outline-none" required>
                 </div>
                 <div>
-                    <label class="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Active Triggers</label>
-                    <div class="grid grid-cols-2 gap-2 mt-2">
-                         <label class="flex items-center gap-2 text-[11px] text-slate-400 px-3 py-2 bg-white/5 rounded-lg border border-white/5 cursor-pointer">
-                            <input type="checkbox" name="fileTrigger" value="Number Plate Detection" checked class="rounded bg-slate-900 text-indigo-600"> Plate Detection
-                         </label>
-                         <label class="flex items-center gap-2 text-[11px] text-slate-400 px-3 py-2 bg-white/5 rounded-lg border border-white/5 cursor-pointer">
-                            <input type="checkbox" name="fileTrigger" value="Helmet Detection" class="rounded bg-slate-900 text-indigo-600"> Helmet
-                         </label>
-                         <label class="flex items-center gap-2 text-[11px] text-slate-400 px-3 py-2 bg-white/5 rounded-lg border border-white/5 cursor-pointer">
-                            <input type="checkbox" name="fileTrigger" value="Triple Riding Detection" class="rounded bg-slate-900 text-indigo-600"> Triple Riding
-                         </label>
+                    <label class="block text-[10px] font-bold text-slate-500 uppercase mb-4">Select AI Triggers</label>
+                    <div class="grid grid-cols-1 gap-2">
+                        <label class="flex items-center gap-4 p-4 rounded-2xl bg-white/5 border border-white/5 cursor-pointer hover:bg-white/10">
+                            <input type="checkbox" name="trig" value="Number Plate Detection" checked class="w-5 h-5 rounded-lg border-white/10 bg-slate-900 text-indigo-600">
+                            <div class="flex-1">
+                                <p class="text-sm font-bold">Number Plate (ANPR)</p>
+                                <p class="text-[10px] text-slate-500 uppercase">Detection + Vehicle Tracking</p>
+                            </div>
+                        </label>
+                        <label class="flex items-center gap-4 p-4 rounded-2xl bg-white/5 border border-white/5 cursor-pointer hover:bg-white/10">
+                            <input type="checkbox" name="trig" value="Helmet Detection" class="w-5 h-5 rounded-lg border-white/10 bg-slate-900 text-indigo-600">
+                            <p class="text-sm font-bold">Helmet/Compliance</p>
+                        </label>
                     </div>
                 </div>
-                <button type="submit" id="uploadSubmitBtn" class="w-full py-4 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl font-bold transition-all">Start Batch Process</button>
+                <div class="flex gap-4">
+                    <button type="button" onclick="closeStartModal()" class="flex-1 py-4 bg-slate-800 text-slate-500 font-bold rounded-xl">Cancel</button>
+                    <button type="submit" class="flex-1 py-4 bg-emerald-600 text-white font-bold rounded-xl shadow-emerald-600/20 shadow-lg">Start Capture</button>
+                </div>
             </form>
         </div>
     </div>
 
-    <!-- 4. Camera Info Modal -->
-    <div id="infoModal" class="hidden fixed inset-0 z-[250] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-        <div class="glass max-w-sm w-full rounded-3xl p-8 relative shadow-2xl border-white/10">
-            <button onclick="document.getElementById('infoModal').classList.add('hidden')" class="absolute top-6 right-6 text-slate-500 hover:text-white"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12" stroke-width="2"></path></svg></button>
-            <div class="flex items-center gap-3 mb-6">
-                <div class="w-10 h-10 bg-indigo-600/10 rounded-full flex items-center justify-center text-indigo-400">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" stroke-width="2"></path></svg>
-                </div>
-                <h2 class="text-xl font-bold text-white">Camera Meta</h2>
-            </div>
-            
-            <div class="space-y-4">
-                <div class="flex justify-between items-center text-xs">
-                    <span class="text-slate-500 uppercase font-bold">Identifier</span>
-                    <span id="infoId" class="text-white font-mono bg-white/5 px-2 py-0.5 rounded">6f1a...</span>
-                </div>
-                <div class="flex justify-between items-center text-xs">
-                    <span class="text-slate-500 uppercase font-bold">Device Name</span>
-                    <span id="infoName" class="text-white font-bold">Main Gate 01</span>
-                </div>
-                <div class="flex justify-between items-center text-xs">
-                    <span class="text-slate-500 uppercase font-bold">Base URL/IP</span>
-                    <span id="infoIP" class="text-white font-mono">192.168.1.100</span>
-                </div>
-                <div class="flex justify-between items-center text-xs">
-                    <span class="text-slate-500 uppercase font-bold">Stream Path</span>
-                    <span id="infoLink" class="text-indigo-400 font-mono text-[10px] break-all text-right max-w-[150px]">rtsp://...</span>
-                </div>
-                <div class="flex justify-between items-center text-xs pt-4 border-t border-white/5">
-                    <span class="text-slate-500 uppercase font-bold">Connection</span>
-                    <span id="infoStatus" class="text-emerald-400 font-bold">LIVE ONLINE</span>
-                </div>
-                <div class="flex justify-between items-center text-xs">
-                    <span class="text-slate-500 uppercase font-bold">Since</span>
-                    <span id="infoTime" class="text-slate-400">2026-03-31 03:22</span>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Detection Preview Modal -->
-    <div id="imageModal" class="hidden fixed inset-0 z-[300] flex items-center justify-center p-4 bg-black/90" onclick="this.classList.add('hidden')">
-        <div class="relative group">
-            <img id="modalImg" class="max-w-full max-h-[90vh] rounded-2xl shadow-2xl border border-white/10 scale-95 transition-transform" />
-            <div class="absolute bottom-6 left-1/2 -translate-x-1/2 bg-black/60 px-6 py-2 rounded-full text-white text-xs font-bold uppercase tracking-widest backdrop-blur-md opacity-0 group-hover:opacity-100 transition-opacity">
-                Detection Crop Preview
+    <!-- Info/History Modal -->
+    <div id="metaModal" class="hidden fixed inset-0 z-[250] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+        <div class="glass max-w-sm w-full rounded-3xl p-8 relative border-white/10 shadow-2xl">
+            <button onclick="document.getElementById('metaModal').classList.add('hidden')" class="absolute top-6 right-6 text-slate-500 hover:text-white"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12" stroke-width="2"></path></svg></button>
+            <h3 class="text-xl font-bold mb-6 flex items-center gap-2"><span class="w-1.5 h-6 bg-indigo-500 rounded-full"></span> Metadata View</h3>
+            <div id="metaContent" class="space-y-4 text-xs font-medium text-slate-400">
+                <!-- Info injected here -->
             </div>
         </div>
     </div>
 
     <script>
-        // Global State
-        let activeProcessors = {};
-        let cameraMeta = {};
-        let currentRecordings = [];
-        let seenPlates = new Set();
-        let activeIntervals = {};
-        let activeWebSockets = {};
-        let currentTriggerTarget = null;
+        let cams = {};
+        let activeRecs = {};
+        let seenLocal = new Set();
+        let targetCamId = null;
 
-        // UI Initialization
-        document.addEventListener('DOMContentLoaded', () => {
-            loadRecordings();
-            refreshCameraSelect();
-            initHistoryPolling();
-        });
+        // UI Handlers
+        function toggleCamModal() { document.getElementById('camModal').classList.toggle('hidden'); }
+        function toggleUploadModal() { /* ... */ }
+        function closeStartModal() { document.getElementById('startModal').classList.add('hidden'); }
 
-        // 1. Connection Logic
-        function toggleConnectionModal() { document.getElementById('connectModal').classList.toggle('hidden'); }
-        function toggleUploadModal() { document.getElementById('uploadModal').classList.toggle('hidden'); }
-        function toggleInfoModal(id) { 
-            const m = cameraMeta[id];
-            if (!m) return;
-            document.getElementById('infoId').innerText = id.substring(0,8);
-            document.getElementById('infoName').innerText = m.name;
-            document.getElementById('infoIP').innerText = m.ip;
-            document.getElementById('infoLink').innerText = m.link || m.ip;
-            document.getElementById('infoStatus').innerText = activeProcessors[id] ? 'LIVE ONLINE' : 'OFFLINE';
-            document.getElementById('infoStatus').className = activeProcessors[id] ? 'text-emerald-400 font-bold' : 'text-slate-500 font-bold';
-            document.getElementById('infoTime').innerText = new Date().toLocaleString();
-            document.getElementById('infoModal').classList.remove('hidden'); 
-        }
-
-        const cameraConnectForm = document.getElementById('cameraConnectForm');
-        cameraConnectForm.onsubmit = async (e) => {
+        const camForm = document.getElementById('camForm');
+        camForm.onsubmit = async (e) => {
             e.preventDefault();
-            const btn = document.getElementById('mainConnectBtn');
-            const loader = document.getElementById('connectLoader');
-            
-            btn.disabled = true; loader.classList.remove('hidden');
-            
-            const name = document.getElementById('newCamName').value;
-            const link = document.getElementById('newCamLink').value;
+            const btn = camForm.querySelector('button');
+            const originalText = btn.innerText;
+            btn.innerText = "Attempting Connection..."; btn.disabled = true;
+
+            const name = document.getElementById('camName').value;
+            const link = document.getElementById('camUrl').value;
             
             try {
                 const formData = new FormData();
                 formData.append('name', name);
                 formData.append('link', link);
-                formData.append('triggers', 'Number Plate Detection'); // Default
+                formData.append('triggers', 'Number Plate Detection');
 
                 const res = await fetch('/connect-camera', { method: 'POST', body: formData });
                 const data = await res.json();
                 
                 if (res.ok) {
-                    cameraMeta[data.camera_id] = { name, ip: link, link: link };
-                    addCameraToUI(data.camera_id, name, link);
-                    checkCameraStatus(data.camera_id);
-                    toggleConnectionModal();
-                    refreshCameraSelect();
-                }
-            } catch (err) { alert("Initialization Error: " + err.message); }
-            finally { btn.disabled = false; loader.classList.add('hidden'); }
+                    cams[data.camera_id] = { name, link, status: 'initializing' };
+                    addCamToGrid(data.camera_id, name, link);
+                    pollStatus(data.camera_id);
+                    toggleCamModal();
+                    updateJumpTo();
+                } else { alert("Failed: " + data.error); }
+            } catch (err) { alert("Error: " + err.message); }
+            finally { btn.innerText = originalText; btn.disabled = false; }
         };
 
-        function addCameraToUI(id, name, link) {
-            document.getElementById('welcomeScreen').style.display = 'none';
-            const container = document.getElementById('streamingWorkspace');
-            
+        function addCamToGrid(id, name, link) {
+            document.getElementById('emptyMsg').style.display = 'none';
+            const grid = document.getElementById('feedGrid');
             const div = document.createElement('div');
-            div.id = `view-${id}`;
-            div.className = "flex flex-col glass rounded-[2.5rem] overflow-hidden border-indigo-500/10 border-2 animation-in slide-in-from-bottom duration-500";
-            
+            div.id = `cam-view-${id}`;
+            div.className = "flex flex-col glass rounded-[2.5rem] overflow-hidden border-white/5 border-2 animation-in zoom-in duration-500";
             div.innerHTML = `
-                <div class="p-6 border-b border-white/5 flex flex-col md:flex-row justify-between items-center gap-4 bg-white/5">
-                    <div class="flex items-center gap-4">
-                        <div id="status-glow-${id}" class="w-3 h-3 bg-amber-500 rounded-full animate-pulse shadow-[0_0_10px_rgba(245,158,11,0.5)]"></div>
-                        <div class="flex flex-col">
-                            <h3 class="font-bold text-lg text-white leading-none">${name}</h3>
-                            <span class="text-[11px] text-slate-500 mono mt-1">${link.substring(0, 50)}${link.length > 50 ? '...' : ''}</span>
+                <div class="px-8 py-6 border-b border-white/5 flex flex-col md:flex-row justify-between items-center gap-4 bg-white/5">
+                    <div>
+                        <div class="flex items-center gap-3">
+                            <span id="dot-${id}" class="w-3 h-3 bg-amber-500 rounded-full animate-pulse"></span>
+                            <h3 class="font-bold text-lg text-white">${name}</h3>
                         </div>
+                        <p class="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1">${link}</p>
                     </div>
-                    
-                    <div class="flex items-center gap-2">
-                        <div id="controls-${id}" class="hidden flex gap-2">
-                            <button onclick="startManualRecording('${id}')" id="start-btn-${id}" class="btn-action px-5 py-2 bg-emerald-600/10 hover:bg-emerald-600 text-emerald-400 hover:text-white rounded-xl text-xs font-bold uppercase tracking-widest border border-emerald-600/20 shadow-sm transition-all">Start</button>
-                            <button onclick="stopManualRecording('${id}')" id="stop-btn-${id}" class="btn-action hidden px-5 py-2 bg-rose-600/10 hover:bg-rose-600 text-rose-400 hover:text-white rounded-xl text-xs font-bold uppercase tracking-widest border border-rose-600/20 shadow-sm transition-all">Stop</button>
-                            <button onclick="openTriggerModal('${id}')" class="btn-action px-5 py-2 bg-indigo-600/10 hover:bg-indigo-600 text-indigo-400 hover:text-white rounded-xl text-xs font-bold uppercase tracking-widest border border-indigo-600/20 shadow-sm transition-all">Auto</button>
-                        </div>
-                        <div class="h-8 w-px bg-white/5 mx-2"></div>
-                        <button onclick="toggleInfoModal('${id}')" class="p-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition-all"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" stroke-width="2"></path></svg></button>
-                        <button onclick="disconnectCamera('${id}')" class="p-2.5 rounded-xl bg-rose-600/10 hover:bg-rose-600 text-rose-400 hover:text-white transition-all"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12" stroke-width="2"></path></svg></button>
+                    <div id="btns-${id}" class="hidden flex gap-2">
+                        <button onclick="requestStart('${id}')" id="btn-start-${id}" class="px-6 py-2 bg-emerald-600/10 hover:bg-emerald-600 text-emerald-400 hover:text-white rounded-xl text-[10px] font-bold uppercase tracking-widest border border-emerald-600/20 transition-all">Start Record</button>
+                        <button onclick="stopRec('${id}')" id="btn-stop-${id}" class="hidden px-6 py-2 bg-rose-600/10 hover:bg-rose-600 text-rose-400 hover:text-white rounded-xl text-[10px] font-bold uppercase tracking-widest border border-rose-600/20 transition-all">Stop & Save</button>
+                        <button onclick="showInfo('${id}')" class="p-2.5 bg-white/5 rounded-xl hover:bg-white/10 text-slate-400 transition-all"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" stroke-width="2"></path></svg></button>
+                        <button onclick="disconnect('${id}')" class="p-2.5 bg-rose-600/5 rounded-xl hover:bg-rose-600 text-rose-400 hover:text-white transition-all"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12" stroke-width="2"></path></svg></button>
                     </div>
                 </div>
-                
-                <div class="aspect-video bg-black flex items-center justify-center relative">
+                <div class="aspect-video bg-black relative">
                     <canvas id="canvas-${id}" class="w-full h-full object-contain"></canvas>
-                    <div id="init-overlay-${id}" class="absolute inset-0 bg-black/60 flex flex-col items-center justify-center">
+                    <div id="loader-${id}" class="absolute inset-0 flex flex-col items-center justify-center bg-black/60">
                         <div class="animate-spin h-8 w-8 border-4 border-indigo-500 border-t-transparent rounded-full mb-4"></div>
-                        <p class="text-xs font-bold text-slate-400 uppercase tracking-widest">Bridging RTSP Protocol...</p>
+                        <p class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Handshaking Stream...</p>
                     </div>
-                    
-                    <div id="recording-indicator-${id}" class="hidden absolute top-6 right-6 flex items-center gap-3 glass px-4 py-2 rounded-full border-emerald-500/40">
-                         <span class="w-3 h-3 bg-emerald-500 rounded-full recording-pulse"></span>
-                         <span class="text-[10px] font-bold text-white uppercase tracking-widest">LIVE REC: <span id="rec-clock-${id}">00:00:00</span></span>
+                    <div id="rec-label-${id}" class="hidden absolute top-8 right-8 flex items-center gap-3 bg-rose-600/20 border border-rose-500/40 px-4 py-2 rounded-full recording-glow">
+                        <span class="w-2 h-2 bg-rose-500 rounded-full animate-ping"></span>
+                        <span class="text-[9px] font-bold text-white uppercase tracking-widest">Recording: <span id="timer-${id}">00:00</span></span>
                     </div>
                 </div>
             `;
-            container.prepend(div);
+            grid.prepend(div);
         }
 
-        async function checkCameraStatus(id) {
+        async function pollStatus(id) {
             const intv = setInterval(async () => {
                 const res = await fetch(`/camera-status/${id}`);
                 const data = await res.json();
                 if (data.status === 'connected') {
                     clearInterval(intv);
-                    activeProcessors[id] = true;
-                    document.getElementById(`status-glow-${id}`).className = "w-3 h-3 bg-emerald-500 rounded-full shadow-[0_0_10px_rgba(16,185,129,0.5)]";
-                    document.getElementById(`init-overlay-${id}`).classList.add('hidden');
-                    document.getElementById(`controls-${id}`).classList.remove('hidden');
-                    startWebSocket(id);
-                    activeIntervals[id] = setInterval(() => pollCameraLogs(id), 1500);
-                    refreshConnectionCount();
+                    cams[id].status = 'connected';
+                    document.getElementById(`dot-${id}`).className = "w-3 h-3 bg-emerald-500 rounded-full shadow-[0_0_10px_rgba(16,185,129,0.4)]";
+                    document.getElementById(`btns-${id}`).classList.remove('hidden');
+                    document.getElementById(`loader-${id}`).classList.add('hidden');
+                    startWS(id);
+                    setInterval(() => fetchLogs(id), 2000);
                 }
             }, 2000);
         }
 
-        // 2. Control Actions
-        async function startManualRecording(id) {
+        // Recording Flow
+        function requestStart(id) { targetCamId = id; document.getElementById('startModal').classList.remove('hidden'); }
+        
+        document.getElementById('startForm').onsubmit = async (e) => {
+            e.preventDefault();
+            const id = targetCamId;
+            const name = document.getElementById('recName').value;
+            const triggers = Array.from(document.querySelectorAll('input[name="trig"]:checked')).map(c => c.value);
+            
+            if (!triggers.length) return alert("Select at least one trigger");
+
             const formData = new FormData();
-            formData.append('initiated_by', 'Admin Dashboard');
+            formData.append('initiated_by', 'Administrator');
+            formData.append('video_name', name);
+            formData.append('note', `Auto-triggers: ${triggers.join(', ')}`);
+
             const res = await fetch(`/api/v1/cameras/${id}/recording/start`, { method: 'POST', body: formData });
             if (res.ok) {
-                document.getElementById(`start-btn-${id}`).classList.add('hidden');
-                document.getElementById(`stop-btn-${id}`).classList.remove('hidden');
-                document.getElementById(`recording-indicator-${id}`).classList.remove('hidden');
-                startClock(id);
-            }
-        }
-
-        async function stopManualRecording(id) {
-            const formData = new FormData();
-            formData.append('stopped_by', 'Admin Dashboard');
-            const res = await fetch(`/api/v1/cameras/${id}/recording/stop`, { method: 'POST', body: formData });
-            if (res.ok) {
-                document.getElementById(`start-btn-${id}`).classList.remove('hidden');
-                document.getElementById(`stop-btn-${id}`).classList.add('hidden');
-                document.getElementById(`recording-indicator-${id}`).classList.add('hidden');
-                stopClock(id);
-                loadRecordings(); 
-            }
-        }
-
-        function openTriggerModal(id) { currentTriggerTarget = id; document.getElementById('triggerModal').classList.remove('hidden'); }
-        function closeTriggerModal() { document.getElementById('triggerModal').classList.add('hidden'); }
-        
-        document.getElementById('confirmTriggerBtn').onclick = async () => {
-            const id = currentTriggerTarget;
-            const triggers = Array.from(document.querySelectorAll('input[name="autoTrigger"]:checked')).map(c => c.value);
-            if (!triggers.length) return alert("Select at least one trigger");
-            
-            const formData = new FormData();
-            formData.append('analysis_type', triggers.join(','));
-            formData.append('triggered_by', 'Auto System');
-            
-            const res = await fetch(`/api/v1/cameras/${id}/analysis/start`, { method: 'POST', body: formData });
-            if (res.ok) {
-                closeTriggerModal();
-                startManualRecording(id); // Automate capture start as well
+                activeRecs[id] = { startTime: Date.now() };
+                document.getElementById(`btn-start-${id}`).classList.add('hidden');
+                document.getElementById(`btn-stop-${id}`).classList.remove('hidden');
+                document.getElementById(`rec-label-${id}`).classList.remove('hidden');
+                closeStartModal();
+                updateTimer(id);
             }
         };
 
-        // 3. Streaming & Data Polling
-        function startWebSocket(id) {
-            const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
-            const ws = new WebSocket(`${protocol}//${location.host}/ws-camera/${id}`);
+        async function stopRec(id) {
+            const formData = new FormData();
+            formData.append('stopped_by', 'User Request');
+            const res = await fetch(`/api/v1/cameras/${id}/recording/stop`, { method: 'POST', body: formData });
+            if (res.ok) {
+                // Remove from active logs right side
+                const logs = document.getElementById('analysisLogs');
+                const children = Array.from(logs.children);
+                children.forEach(c => { if(c.dataset.camId === id) c.remove(); });
+                
+                document.getElementById(`btn-start-${id}`).classList.remove('hidden');
+                document.getElementById(`btn-stop-${id}`).classList.add('hidden');
+                document.getElementById(`rec-label-${id}`).classList.add('hidden');
+                delete activeRecs[id];
+                loadRecs();
+            }
+        }
+
+        // Data & Visuals
+        function startWS(id) {
+            const ws = new WebSocket(`${location.protocol==='https:'?'wss:':'ws:'}//${location.host}/ws-camera/${id}`);
             const canvas = document.getElementById(`canvas-${id}`);
             const ctx = canvas.getContext('2d');
             const img = new Image();
-            activeWebSockets[id] = ws;
             ws.onmessage = (e) => {
                 const url = URL.createObjectURL(new Blob([e.data], {type: 'image/jpeg'}));
                 img.onload = () => { canvas.width = img.width; canvas.height = img.height; ctx.drawImage(img,0,0); URL.revokeObjectURL(url); };
@@ -474,178 +299,89 @@
             };
         }
 
-        async function pollCameraLogs(id) {
+        async function fetchLogs(id) {
             const res = await fetch(`/camera-logs/${id}`);
             const data = await res.json();
-            if (!data.logs) return;
-            
-            const feed = document.getElementById('analyticsFeed');
-            if (feed.querySelector('.italic')) feed.innerHTML = '';
-            
+            const logBox = document.getElementById('analysisLogs');
+            if (logBox.querySelector('italic')) logBox.innerHTML = '';
+
             data.logs.reverse().forEach(log => {
                 const plate = log.plate_number;
-                if (plate && plate !== 'Scanning...' && seenPlates.has(`${id}-${plate}`)) return;
-                if (plate && plate !== 'Scanning...') seenPlates.add(`${id}-${plate}`);
+                if (plate && plate !== 'Scanning...' && seenLocal.has(`${id}-${plate}`)) return;
+                if (plate && plate !== 'Scanning...') seenLocal.add(`${id}-${plate}`);
 
-                const card = document.createElement('div');
-                card.className = "glass p-4 rounded-3xl border-white/5 space-y-3 animation-in slide-in-from-right duration-500 hover:border-indigo-500/30 transition-all";
+                const row = document.createElement('div');
+                row.dataset.camId = id;
+                row.className = "glass p-4 rounded-3xl border-white/5 space-y-4 animation-in slide-in-from-right transition-all hover:border-indigo-500/20";
                 
-                const isR2 = log.saved_to_r2 === true;
-                
-                card.innerHTML = `
+                row.innerHTML = `
                     <div class="flex justify-between items-start">
-                        <div class="flex items-center gap-2">
-                             <span class="trigger-tag">${log.trigger}</span>
-                             <span class="text-[9px] text-slate-600 font-mono">${log.timestamp}</span>
-                        </div>
-                        ${isR2 ? '<span class="text-[9px] text-emerald-400 font-bold tracking-tighter">✓ R2 CLOUD</span>' : '<span class="text-[9px] text-slate-700">LOCAL</span>'}
+                        <span class="trigger-badge">${log.trigger}</span>
+                        <span class="text-[9px] font-mono text-slate-600">${log.timestamp}</span>
                     </div>
                     <div class="flex gap-4">
-                        <div class="w-24 h-16 bg-black rounded-xl overflow-hidden border border-white/5 flex items-center justify-center">
-                            ${log.image_plate ? `<img src="${log.image_plate}" class="w-full h-full object-cover cursor-pointer hover:scale-120 transition-all" onclick="openPreview('${log.image_plate}')">` : '<div class="animate-pulse w-full h-full bg-slate-800"></div>'}
+                        <div class="w-24 h-16 bg-black rounded-xl overflow-hidden border border-white/10">
+                            ${log.image_plate ? `<img src="${log.image_plate}" class="w-full h-full object-cover">` : '<div class="w-full h-full animate-pulse bg-slate-800"></div>'}
                         </div>
                         <div class="flex-1">
-                            <p class="text-indigo-400 font-bold text-sm tracking-tight">${plate || 'Scanning...'}</p>
-                            <p class="text-[10px] text-slate-400 mt-1 uppercase">${log.event}</p>
-                            <p class="text-[9px] text-slate-600 mt-1 uppercase">${cameraMeta[id]?.name || 'Live Source'}</p>
+                            <h4 class="text-indigo-400 font-bold text-sm tracking-tighter">${plate || 'Scanning...'}</h4>
+                            <p class="text-[10px] text-slate-500 font-bold uppercase mt-1">Status: ${log.event}</p>
+                            <p class="text-[9px] text-slate-700 font-bold uppercase mt-1">Source: ${cams[id].name}</p>
                         </div>
                     </div>
                 `;
-                feed.prepend(card);
+                logBox.prepend(row);
+                document.getElementById('logCount').innerText = `${logBox.childElementCount} LOGS`;
             });
         }
 
-        async function loadRecordings() {
-            const res = await fetch('/api/v1/recordings');
-            const data = await res.json();
-            currentRecordings = data.recordings;
-            renderRecordings(currentRecordings);
+        function filterViews(type) {
+            const views = document.querySelectorAll('[id^="cam-view-"]');
+            views.forEach(v => {
+                const id = v.id.replace('cam-view-', '');
+                if (type === 'all') v.style.display = 'flex';
+                else if (type === 'recording') v.style.display = activeRecs[id] ? 'flex' : 'none';
+            });
         }
 
-        function renderRecordings(recs) {
-            const list = document.getElementById('recordingsList');
+        async function loadRecs() {
+            const res = await fetch('/api/v1/recordings');
+            const data = await res.json();
+            const list = document.getElementById('recList');
             list.innerHTML = '';
-            if (!recs.length) { list.innerHTML = '<div class="text-slate-600 text-center py-20 italic text-xs">No recordings found</div>'; return; }
-            
-            recs.forEach(r => {
+            data.recordings.forEach(r => {
                 const div = document.createElement('div');
-                div.className = "p-4 glass rounded-2xl hover:bg-white/5 cursor-pointer border-indigo-500/0 hover:border-indigo-500/20 transition-all group";
-                div.onclick = () => playRecording(r);
+                div.className = "p-4 glass rounded-2xl hover:bg-white/5 cursor-pointer border border-transparent hover:border-white/5 transition-all group";
+                div.onclick = () => window.open(r.file_path, '_blank');
                 div.innerHTML = `
-                    <div class="flex justify-between items-start mb-2">
+                    <div class="flex justify-between items-start mb-1">
                         <h4 class="text-xs font-bold text-slate-200 truncate pr-4">${r.video_name}</h4>
-                        <span class="px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400 text-[8px] font-bold">${r.duration_secs || 0}s</span>
+                        <span class="text-[8px] bg-indigo-500/10 text-indigo-400 px-2 rounded-full border border-indigo-500/20">${r.duration_secs || 0}s</span>
                     </div>
-                    <div class="flex items-center justify-between text-[10px]">
-                        <span class="text-slate-500">${new Date(r.started_at).toLocaleDateString()}</span>
-                        <span class="text-slate-600 group-hover:text-indigo-400 transition-colors uppercase font-bold tracking-tighter">View Media →</span>
-                    </div>
+                    <p class="text-[9px] text-slate-600 font-bold uppercase tracking-widest">${new Date(r.started_at).toLocaleString()}</p>
                 `;
                 list.appendChild(div);
             });
         }
 
-        function playRecording(r) {
-            // Overlays the center stream area with a video player
-            const ws = document.getElementById('streamingWorkspace');
-            ws.innerHTML = `
-                <div class="flex flex-col h-full space-y-6">
-                    <button onclick="location.reload()" class="w-fit text-xs font-bold text-slate-500 hover:text-white uppercase tracking-widest flex items-center gap-2">
-                        ← Back to Live Dashboard
-                    </button>
-                    <div class="glass rounded-[2.5rem] overflow-hidden border-2 border-indigo-500/20 bg-black flex-1 relative flex items-center justify-center">
-                        <video src="${r.file_path}" controls class="w-full h-full object-contain"></video>
-                        <div class="absolute top-8 left-8 flex items-center gap-4">
-                            <div class="glass px-6 py-3 rounded-2xl border-white/10 flex items-center gap-3">
-                                <div class="w-2 h-2 bg-indigo-500 rounded-full animate-pulse"></div>
-                                <div>
-                                    <h3 class="text-sm font-bold text-white uppercase">${r.video_name}</h3>
-                                    <p class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">RECORDED: ${new Date(r.started_at).toLocaleString()}</p>
-                                </div>
-                            </div>
-                            <button onclick="showRecordingInfo('${r.id}')" class="p-4 rounded-2xl glass hover:bg-indigo-600 transition-all"><svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" stroke-width="2"></path></svg></button>
-                        </div>
-                    </div>
-                </div>
-            `;
-        }
-
-        async function showRecordingInfo(id) {
-            const res = await fetch(`/api/v1/recordings/${id}`);
-            const r = await res.json();
-            const camRes = await fetch(`/api/v1/cameras/${r.camera_id}`);
-            const c = await camRes.json();
-            
-            document.getElementById('infoId').innerText = r.camera_id.substring(0,8);
-            document.getElementById('infoName').innerText = c.name;
-            document.getElementById('infoIP').innerText = c.ip;
-            document.getElementById('infoLink').innerText = c.ip;
-            document.getElementById('infoStatus').innerText = 'COMPLETED SESSION';
-            document.getElementById('infoTime').innerText = new Date(r.started_at).toLocaleString();
-            document.getElementById('infoModal').classList.remove('hidden');
-        }
-
-        // 4. Utils
-        function refreshConnectionCount() { document.getElementById('connectionCount').innerText = `${Object.keys(activeProcessors).length} Cameras Online`; }
-        function refreshCameraSelect() {
-            const s = document.getElementById('cameraSelectFilter');
-            s.innerHTML = '<option value="all">Select Camera...</option>';
-            Object.entries(cameraMeta).forEach(([id, meta]) => {
-                const opt = document.createElement('option');
-                opt.value = id; opt.innerText = meta.name;
-                s.appendChild(opt);
+        function updateJumpTo() {
+            const s = document.getElementById('camJump');
+            s.innerHTML = '<option value="all">Jump to Camera</option>';
+            Object.entries(cams).forEach(([id, c]) => {
+                const o = document.createElement('option'); o.value = id; o.innerText = c.name; s.appendChild(o);
             });
         }
 
-        function filterViews(type) {
-            const views = document.querySelectorAll('[id^="view-"]');
-            views.forEach(v => {
-                const id = v.id.replace('view-', '');
-                if (type === 'all') v.style.display = 'flex';
-                else if (type === 'recording') v.style.display = document.getElementById(`recording-indicator-${id}`).classList.contains('hidden') ? 'none' : 'flex';
-            });
+        function updateTimer(id) {
+            if (!activeRecs[id]) return;
+            const elapsed = Math.floor((Date.now() - activeRecs[id].startTime) / 1000);
+            const m = Math.floor(elapsed / 60).toString().padStart(2,'0');
+            const s = (elapsed % 60).toString().padStart(2,'0');
+            document.getElementById(`timer-${id}`).innerText = `${m}:${s}`;
+            setTimeout(() => updateTimer(id), 1000);
         }
 
-        function filterByCamera(id) {
-            const views = document.querySelectorAll('[id^="view-"]');
-            views.forEach(v => {
-                if (id === 'all' || v.id === `view-${id}`) v.style.display = 'flex';
-                else v.style.display = 'none';
-            });
-        }
-
-        function toggleAllTriggers() {
-            const checks = document.querySelectorAll('input[name="autoTrigger"]');
-            const allChecked = Array.from(checks).every(c => c.checked);
-            checks.forEach(c => c.checked = !allChecked);
-        }
-
-        let clocks = {};
-        function startClock(id) {
-            let s = 0;
-            clocks[id] = setInterval(() => {
-                s++;
-                const h = Math.floor(s/3600).toString().padStart(2,'0');
-                const m = Math.floor((s%3600)/60).toString().padStart(2,'0');
-                const sec = (s%60).toString().padStart(2,'0');
-                document.getElementById(`rec-clock-${id}`).innerText = `${h}:${m}:${sec}`;
-            }, 1000);
-        }
-        function stopClock(id) { clearInterval(clocks[id]); delete clocks[id]; }
-
-        function openPreview(src) { document.getElementById('modalImg').src = src; document.getElementById('imageModal').classList.remove('hidden'); }
-
-        async function disconnectCamera(id) {
-            if (!confirm("Permanently disconnect camera feed?")) return;
-            const res = await fetch(`/disconnect-camera/${id}`, { method: 'POST' });
-            if (res.ok) {
-                document.getElementById(`view-${id}`).remove();
-                delete activeProcessors[id];
-                if (activeWebSockets[id]) activeWebSockets[id].close();
-                clearInterval(activeIntervals[id]);
-                refreshConnectionCount();
-            }
-        }
+        loadRecs();
     </script>
 </body>
 </html>
