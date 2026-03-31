@@ -6,7 +6,6 @@ import os
 import uuid
 import json
 from pathlib import Path
-from pathlib import Path
 from utils.detection import process_video, LiveCameraProcessor
 import cv2
 from fastapi.responses import StreamingResponse
