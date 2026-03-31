@@ -26,16 +26,16 @@ class Camera(Base):
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     name = Column(String, nullable=False)
-    ip = Column(String, nullable=False) # RTSP or HTTP URL
+    ip = Column(String, nullable=False) # Store RTSP/IP
     location = Column(String)
     brand = Column(String)
-    status = Column(String, default="active") # active, inactive, recording
+    status = Column(Enum("active", "inactive", "recording", name="camera_status"), default="active")
     is_recording = Column(Boolean, default=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now(), server_default=func.now())
 
     recordings = relationship("RecordingSession", back_populates="camera")
-    schedule = relationship("Schedule", back_populates="camera", uselist=False)
+    schedules = relationship("Schedule", back_populates="camera", uselist=False)
     analysis_sessions = relationship("AnalysisSession", back_populates="camera")
 
 class RecordingSession(Base):
@@ -43,10 +43,10 @@ class RecordingSession(Base):
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     camera_id = Column(String, ForeignKey("cameras.id"))
-    video_name = Column(String) # Filename
-    file_path = Column(String) # Storage Path/URL
-    duration_secs = Column(Integer, default=0)
-    source = Column(String, default="manual") # manual, auto, analysis
+    video_name = Column(String)
+    file_path = Column(String)
+    duration_secs = Column(Integer)
+    source = Column(Enum("manual", "auto", "analysis", name="recording_source"), default="manual")
     started_at = Column(DateTime(timezone=True), server_default=func.now())
     stopped_at = Column(DateTime(timezone=True))
     saved_at = Column(DateTime(timezone=True))
@@ -64,7 +64,7 @@ class Schedule(Base):
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     camera_id = Column(String, ForeignKey("cameras.id"), unique=True)
-    mode = Column(String, default="manual") # 24_7, custom, manual
+    mode = Column(Enum("24_7", "custom", name="schedule_mode"), default="24_7")
     is_enabled = Column(Boolean, default=True)
     custom_start_time = Column(String) # HH:MM
     custom_end_time = Column(String) # HH:MM
@@ -74,7 +74,7 @@ class Schedule(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now(), server_default=func.now())
 
-    camera = relationship("Camera", back_populates="schedule")
+    camera = relationship("Camera", back_populates="schedules")
 
 class AnalysisSession(Base):
     __tablename__ = "analysis_sessions"
@@ -94,12 +94,11 @@ class AnalysisSession(Base):
     camera = relationship("Camera", back_populates="analysis_sessions")
     recording_session = relationship("RecordingSession", back_populates="analysis_session")
 
-# Detections table for AI Feed Output
+# Legacy Detection table (to keep existing functionality working)
 class Detection(Base):
     __tablename__ = "detections"
 
     id = Column(Integer, primary_key=True, index=True)
-    camera_id = Column(String)
     task_id = Column(String)
     filename = Column(String)
     timestamp = Column(Float)
@@ -109,7 +108,6 @@ class Detection(Base):
     image_object_url = Column(String)
     plate_number = Column(String)
     vehicle_color = Column(String)
-    saved_to_r2 = Column(Boolean, default=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 def init_db():

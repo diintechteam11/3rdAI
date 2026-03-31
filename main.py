@@ -1,224 +1,295 @@
-from fastapi import FastAPI, UploadFile, File, BackgroundTasks, Request, Form, WebSocket, WebSocketDisconnect, APIRouter, Header, HTTPException, Depends, Query
-from fastapi.responses import JSONResponse, HTMLResponse, StreamingResponse
+from fastapi import FastAPI, UploadFile, File, BackgroundTasks, Request, Form, WebSocket, WebSocketDisconnect
+from fastapi.responses import JSONResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from fastapi.middleware.cors import CORSMiddleware
 import os
 import uuid
 import json
-import time
-import re
-import asyncio
 from pathlib import Path
+from pathlib import Path
+from utils.detection import process_video, LiveCameraProcessor
+import cv2
+from fastapi.responses import StreamingResponse
 from datetime import datetime
-from typing import Optional, List, Union
-from sqlalchemy.orm import Session
-from sqlalchemy.sql import func
 from pydantic import BaseModel, Field
+from typing import Optional, List
+from utils.db import init_db, get_db, Camera, RecordingSession, Schedule, AnalysisSession, Detection
+from sqlalchemy.orm import Session
+from fastapi import Depends
 
-from utils.detection import process_video, LiveCameraProcessor, MODEL_MAP
-from utils.db import init_db, get_db, Camera, RecordingSession, AnalysisSession, Detection
 
-app = FastAPI(
-    title="3rdAI | Enterprise Analytics",
-    version="1.3",
-)
+app = FastAPI(title="AI Video Analytics & Recording API", version="1.0")
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# Global trackers
-active_camera_processors = {} 
-log_connections = {} # camera_id -> list of websockets
-
+# Initialize DB on startup
 @app.on_event("startup")
-async def on_startup():
+def on_startup():
     init_db()
-    # Persistence: Reconnect cameras that were active
-    db = next(get_db())
-    all_cams = db.query(Camera).all()
-    for cam in all_cams:
-        if cam.status == "active" or cam.status == "recording":
-            # Don't auto-start all unless requested, but marked as available
-            # We'll just ensure the UI fetches them
-            pass
-    db.close()
 
+# Configuration
 BASE_DIR = Path(__file__).resolve().parent
 UPLOAD_DIR = BASE_DIR / "static" / "uploads"
 OUTPUT_DIR = BASE_DIR / "static" / "outputs"
 CROPS_DIR = BASE_DIR / "static" / "crops"
-RECORDINGS_DIR = BASE_DIR / "static" / "recordings"
+TEMPLATES_DIR = BASE_DIR / "templates"
 
-for d in [UPLOAD_DIR, OUTPUT_DIR, CROPS_DIR, RECORDINGS_DIR]:
-    d.mkdir(parents=True, exist_ok=True)
+# Ensure directories exist
+UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+CROPS_DIR.mkdir(parents=True, exist_ok=True)
 
+# API Keys storage
+API_KEYS_FILE = BASE_DIR / "api_keys.json"
+
+def load_keys():
+    if not API_KEYS_FILE.exists() or API_KEYS_FILE.stat().st_size == 0:
+        return {}
+    try:
+        with open(API_KEYS_FILE, "r") as f:
+            return json.load(f)
+    except (json.JSONDecodeError, IOError):
+        return {}
+
+def save_keys(keys):
+    with open(API_KEYS_FILE, "w") as f:
+        json.dump(keys, f, indent=4)
+
+# Initialize file if not valid
+if not API_KEYS_FILE.exists() or API_KEYS_FILE.stat().st_size == 0:
+    save_keys({})
+
+# Mount static files
 app.mount("/static", StaticFiles(directory="static"), name="static")
-templates = Jinja2Templates(directory="templates")
 
-# --- API v1 ---
-api_v1 = APIRouter(prefix="/api/v1", tags=["API v1"])
+# Templates
+templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
-@api_v1.get("/cameras")
-async def list_cameras(db: Session = Depends(get_db)):
-    return {"cameras": db.query(Camera).all()}
+# In-memory database for task tracking (in production, use Redis or DB)
+processing_tasks = {}
+camera_processes = {}
 
-@api_v1.post("/cameras/{camera_id}/recording/start")
-async def start_recording(camera_id: str, initiated_by: str = Form(...), video_name: Optional[str] = Form(None), triggers: Optional[str] = Form(None), db: Session = Depends(get_db)):
-    camera = db.query(Camera).filter(Camera.id == camera_id).first()
-    if not camera: return JSONResponse(status_code=404, content={"error": "Not Found"})
-    
-    if camera_id not in active_camera_processors:
-        active_camera_processors[camera_id] = LiveCameraProcessor(camera_id, camera.ip, ["Number Plate Detection"])
-        await asyncio.sleep(1)
-    
-    if triggers:
-        active_camera_processors[camera_id].update_triggers([t.strip() for t in triggers.split(",") if t.strip()])
-
-    success, s_id = active_camera_processors[camera_id].start_recording(initiated_by, video_name, "manual")
-    if success:
-        camera.status = "recording"; camera.is_recording = True; db.commit()
-        return {"session_id": s_id}
-    return JSONResponse(status_code=500, content={"error": "Start failed"})
-
-@api_v1.post("/cameras/{camera_id}/recording/stop")
-async def stop_recording(camera_id: str, stopped_by: str = Form(...), db: Session = Depends(get_db)):
-    if camera_id not in active_camera_processors: return JSONResponse(status_code=404, content={"error": "No Session"})
-    camera = db.query(Camera).filter(Camera.id == camera_id).first()
-    success, s_id = active_camera_processors[camera_id].stop_recording(stopped_by)
-    if success:
-        camera.status = "active"; camera.is_recording = False
-        db.commit()
-        return {"ok": True}
-    return JSONResponse(status_code=500, content={"error": "Stop failed"})
-
-@api_v1.get("/recordings")
-async def list_recordings(db: Session = Depends(get_db)):
-    recs = db.query(RecordingSession).order_by(RecordingSession.started_at.desc()).all()
-    return {"recordings": recs}
-
-@api_v1.delete("/recordings/{id}")
-async def delete_recording(id: str, db: Session = Depends(get_db)):
-    rec = db.query(RecordingSession).filter(RecordingSession.id == id).first()
-    if rec:
-        if rec.file_path:
-            p = BASE_DIR / rec.file_path.lstrip("/")
-            if p.exists(): p.unlink()
-        db.delete(rec); db.commit()
-        return {"ok": True}
-    return JSONResponse(status_code=404, content={"error": "Rec not found"})
-
-@api_v1.get("/recordings/{id}/logs")
-async def get_recording_logs(id: str, db: Session = Depends(get_db)):
-    rec = db.query(RecordingSession).filter(RecordingSession.id == id).first()
-    if not rec: return {"logs": []}
-    # Fetch detections for this session or time range
-    dets = db.query(Detection).filter(
-        Detection.camera_id == rec.camera_id,
-        Detection.created_at >= rec.started_at,
-        (Detection.created_at <= rec.stopped_at if rec.stopped_at else True)
-    ).all()
-    return {"logs": dets}
-
-app.include_router(api_v1)
-
-# --- WEB UI & AD-HOC ---
 @app.get("/", response_class=HTMLResponse)
-async def home(request: Request): return templates.TemplateResponse(request, "index.html", {"request": request})
+async def read_root(request: Request):
+    return templates.TemplateResponse(request, "index.html")
 
-@app.post("/connect-camera")
-async def connect(name: str = Form(...), link: str = Form(...), db: Session = Depends(get_db)):
-    # Check if camera exists in DB
-    cam = db.query(Camera).filter(Camera.ip == link).first()
-    if not cam:
-        cam = Camera(id=str(uuid.uuid4()), name=name, ip=link, status="active")
-        db.add(cam); db.commit()
-    else:
-        cam.status = "active"; db.commit()
+@app.get("/docs", response_class=HTMLResponse)
+async def documentation(request: Request):
+    return templates.TemplateResponse(request, "docs.html")
+
+@app.get("/api-access", response_class=HTMLResponse)
+async def api_access(request: Request):
+    return templates.TemplateResponse(request, "api.html")
+
+@app.get("/playground", response_class=HTMLResponse)
+async def playground(request: Request):
+    return templates.TemplateResponse(request, "playground.html")
+
+@app.post("/generate-api-key")
+async def generate_api_key():
+    new_key = f"sk-{uuid.uuid4().hex}"
+    keys = load_keys()
+    keys[new_key] = {"created_at": str(datetime.now()), "usage": 0}
+    save_keys(keys)
+    return {"api_key": new_key}
+
+from fastapi import Header, HTTPException
+
+async def check_api_key(x_api_key: str = Header(None)):
+    if not x_api_key:
+        # For browser testing, we allow skipping key check on the main upload if not using Playground
+        # But for documentation's sake, we'll enforce it if provided or if coming from Playground
+        return True
+        
+    keys = load_keys()
+    if x_api_key not in keys:
+        raise HTTPException(status_code=403, detail="Invalid API Key")
     
-    if cam.id not in active_camera_processors:
-        active_camera_processors[cam.id] = LiveCameraProcessor(cam.id, link, ["Number Plate Detection"])
-    return {"camera_id": cam.id}
+    # Increment usage
+    keys[x_api_key]["usage"] = keys[x_api_key].get("usage", 0) + 1
+    save_keys(keys)
+    return True
 
-@app.post("/disconnect-camera/{id}")
-async def disconnect(id: str, db: Session = Depends(get_db)):
-    if id in active_camera_processors:
-        active_camera_processors[id].is_running = False
-        del active_camera_processors[id]
-    cam = db.query(Camera).filter(Camera.id == id).first()
-    if cam: cam.status = "inactive"; db.commit()
-    return {"ok": True}
-
-@app.get("/camera-status/{id}")
-async def status(id: str):
-    if id in active_camera_processors and active_camera_processors[id].latest_jpeg: return {"status": "connected"}
-    return {"status": "initializing"}
-
-@app.get("/camera-logs/{id}")
-async def legacy_logs(id: str):
-    if id in active_camera_processors:
-        l = active_camera_processors[id].logs[:]
-        active_camera_processors[id].logs = []
-        return {"logs": l}
-    return {"logs": []}
-
-# WebSockets
-@app.websocket("/ws-camera/{id}")
-async def ws_stream(websocket: WebSocket, id: str):
-    if id not in active_camera_processors: return
-    await websocket.accept()
-    p = active_camera_processors[id]
+def background_video_processing(task_id: str, input_path: str, output_path: str, selected_triggers: list):
+    """
+    Function to be run in BackgroundTasks to avoid blocking.
+    """
     try:
-        while True:
-            if p.latest_jpeg: await websocket.send_bytes(p.latest_jpeg)
-            await asyncio.sleep(0.04) # ~25fps
-    except: pass
-
-@app.websocket("/ws-logs/{id}")
-async def ws_logs(websocket: WebSocket, id: str):
-    await websocket.accept()
-    if id not in log_connections: log_connections[id] = []
-    log_connections[id].append(websocket)
-    try:
-        while True:
-            # We fetch from processor and broadcast
-            if id in active_camera_processors:
-                p = active_camera_processors[id]
-                if p.logs:
-                    l = p.logs[:]; p.logs = []
-                    for ws in log_connections[id]:
-                        await ws.send_json({"logs": l})
-            await asyncio.sleep(1)
-    except:
-        if id in log_connections: log_connections[id].remove(websocket)
+        processing_tasks[task_id]["status"] = "processing"
+        
+        # Run AI logic
+        logs = process_video(task_id, input_path, output_path, selected_triggers)
+        
+        # Build public URL for the output video
+        output_url = f"/static/outputs/{os.path.basename(output_path)}"
+        
+        processing_tasks[task_id].update({
+            "status": "completed",
+            "logs": logs,
+            "video_url": output_url
+        })
+        
+        print(f"Task {task_id} completed successfully.")
+        
+    except Exception as e:
+        print(f"Error in task {task_id}: {str(e)}")
+        processing_tasks[task_id]["status"] = "failed"
+        processing_tasks[task_id]["error"] = str(e)
 
 @app.post("/upload-video")
-async def upload_proc(background_tasks: BackgroundTasks, video_file: UploadFile = File(...), triggers: str = Form("")):
-    tid = str(uuid.uuid4())
-    inp = str(UPLOAD_DIR / f"{tid}_{video_file.filename}")
-    with open(inp, "wb") as f: f.write(await video_file.read())
-    out = str(OUTPUT_DIR / f"proc_{tid}.mp4")
-    trigs = [t.strip() for t in triggers.split(",") if t.strip()]
+async def upload_video(
+    background_tasks: BackgroundTasks,
+    video_file: UploadFile = File(...),
+    triggers: str = Form(""),
+    x_api_key: str = Header(None)
+):
+    # Validate key if provided (Playground always sends it)
+    await check_api_key(x_api_key)
     
-    background_tasks.add_task(run_background, tid, inp, out, trigs)
-    return {"task_id": tid}
+    if not video_file.filename.endswith(('.mp4', '.avi', '.mov', '.mkv')):
+        return JSONResponse(content={"error": "Invalid video format"}, status_code=400)
+    
+    # Generate unique ID for task
+    task_id = str(uuid.uuid4())
+    
+    # Parse triggers (comma separated)
+    selected_triggers = [t.strip() for t in triggers.split(",") if t.strip()]
+    if not selected_triggers:
+        return JSONResponse(content={"error": "No triggers selected"}, status_code=400)
 
-async def run_background(tid, inp, out, trigs):
-    logs = await asyncio.get_event_loop().run_in_executor(None, process_video, tid, inp, out, trigs)
-    # Store result in a temporary file for the UI to fetch
-    with open(OUTPUT_DIR / f"{tid}.json", "w") as f: json.dump({"status": "completed", "logs": logs, "video_url": f"/static/outputs/{os.path.basename(out)}"}, f)
+    # Save uploaded file
+    input_filename = f"{task_id}_{video_file.filename}"
+    input_path = str(UPLOAD_DIR / input_filename)
+    
+    with open(input_path, "wb") as f:
+        f.write(await video_file.read())
 
-@app.get("/video-result/{tid}")
-async def get_res(tid: str):
-    path = OUTPUT_DIR / f"{tid}.json"
-    if path.exists():
-        with open(path, "r") as f: return json.load(f)
-    return {"status": "processing"}
+    # Path for processed result
+    output_filename = f"processed_{task_id}.mp4"
+    output_path = str(OUTPUT_DIR / output_filename)
+
+    # Initial state
+    processing_tasks[task_id] = {
+        "status": "queued",
+        "video_url": None,
+        "logs": [],
+        "id": task_id,
+        "filename": video_file.filename
+    }
+
+    # Add background task
+    background_tasks.add_task(
+        background_video_processing, 
+        task_id, 
+        input_path, 
+        output_path, 
+        selected_triggers
+    )
+
+    return {"message": "Upload successful, processing started.", "task_id": task_id}
+
+@app.get("/video-result/{task_id}")
+async def get_video_result(task_id: str, x_api_key: str = Header(None)):
+    await check_api_key(x_api_key)
+    task = processing_tasks.get(task_id)
+    if not task:
+        return JSONResponse(content={"error": "Task not found"}, status_code=404)
+    return task
+
+@app.get("/logs/{task_id}")
+async def get_logs(task_id: str, x_api_key: str = Header(None)):
+    await check_api_key(x_api_key)
+    task = processing_tasks.get(task_id)
+    if not task:
+        return JSONResponse(content={"error": "Task not found"}, status_code=404)
+    return {"logs": task.get("logs", [])}
+
+@app.post("/connect-camera")
+async def connect_camera(
+    name: str = Form(...),
+    link: str = Form(...),
+    triggers: str = Form("")
+):
+    camera_id = f"cam-{uuid.uuid4().hex[:8]}"
+    selected_triggers = [t.strip() for t in triggers.split(",") if t.strip()]
+    
+    if not selected_triggers:
+        return JSONResponse(content={"error": "No triggers selected"}, status_code=400)
+
+    # Initialize live processor (now async-background)
+    processor = LiveCameraProcessor(camera_id, link, selected_triggers)
+    
+    camera_processes[camera_id] = {
+        "id": camera_id,
+        "name": name,
+        "link": link,
+        "triggers": selected_triggers,
+        "processor": processor
+    }
+    
+    return {"message": "Camera connection initiated", "camera_id": camera_id}
+
+@app.get("/camera-status/{camera_id}")
+async def get_camera_status(camera_id: str):
+    if camera_id not in camera_processes:
+        return JSONResponse(content={"status": "not_found"}, status_code=404)
+    return {"status": camera_processes[camera_id]["processor"].status}
+
+@app.get("/camera-stream/{camera_id}")
+async def camera_stream(camera_id: str):
+    if camera_id not in camera_processes:
+        raise HTTPException(status_code=404, detail="Camera not found")
+    
+    processor = camera_processes[camera_id]["processor"]
+    
+    def generate():
+        while True:
+            if processor.latest_jpeg:
+                yield (b'--frame\r\n'
+                       b'Content-Type: image/jpeg\r\n\r\n' + processor.latest_jpeg + b'\r\n')
+            
+            import time
+            time.sleep(0.04) # ~25fps
+
+    return StreamingResponse(generate(), media_type="multipart/x-mixed-replace; boundary=frame")
+
+@app.websocket("/ws-camera/{camera_id}")
+async def websocket_camera_stream(websocket: WebSocket, camera_id: str):
+    if camera_id not in camera_processes:
+        await websocket.close(code=1008)
+        return
+
+    await websocket.accept()
+    processor = camera_processes[camera_id]["processor"]
+    processor.add_log("System", "WebSocket Client Connected")
+    
+    try:
+        while True:
+            # Send the pre-encoded JPEG
+            if processor.latest_jpeg:
+                await websocket.send_bytes(processor.latest_jpeg)
+            
+            import asyncio
+            await asyncio.sleep(0.04) # ~25fps
+    except WebSocketDisconnect:
+        processor.add_log("System", "WebSocket Client Disconnected")
+    except Exception as e:
+        processor.add_log("System", f"WebSocket Error: {e}")
+
+@app.get("/camera-logs/{camera_id}")
+async def get_camera_logs(camera_id: str):
+    if camera_id not in camera_processes:
+        return JSONResponse(content={"error": "Camera not found"}, status_code=404)
+    
+    processor = camera_processes[camera_id]["processor"]
+    return {"logs": processor.logs}
+
+@app.post("/disconnect-camera/{camera_id}")
+async def disconnect_camera(camera_id: str):
+    if camera_id in camera_processes:
+        camera_processes[camera_id]["processor"].stop()
+        del camera_processes[camera_id]
+        return {"message": "Camera disconnected"}
+    return JSONResponse(content={"error": "Camera not found"}, status_code=404)
 
 if __name__ == "__main__":
-    import uvicorn; uvicorn.run(app, host="0.0.0.0", port=8000)
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
